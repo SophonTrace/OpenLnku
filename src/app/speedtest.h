@@ -17,6 +17,7 @@ struct SpeedSnapshot {
 class SpeedTest : public QObject {
     Q_OBJECT
     Q_PROPERTY(int mode READ mode WRITE setMode NOTIFY changed)
+    Q_PROPERTY(int nodeChoice READ nodeChoice WRITE setNodeChoice NOTIFY changed)
     Q_PROPERTY(bool running READ running NOTIFY changed)
     Q_PROPERTY(QString phase READ phase NOTIFY changed)
     Q_PROPERTY(QString exitIp READ exitIp NOTIFY changed)
@@ -35,6 +36,8 @@ public:
     ~SpeedTest() override;
     int mode() const { return mode_; }
     void setMode(int mode);
+    int nodeChoice() const { return nodeChoice_; }
+    void setNodeChoice(int choice);
     bool running() const { return worker_ != nullptr; }
     QString phase() const { return current().phase; }
     QString exitIp() const { return current().ip; }
@@ -56,10 +59,12 @@ public:
 signals:
     void changed();
 private:
-    const SpeedSnapshot& current() const { return results_[size_t(mode_)]; }
+    size_t slot() const { return size_t(mode_ * 3 + nodeChoice_); }
+    const SpeedSnapshot& current() const { return results_[slot()]; }
     bool demo_;
     int mode_ = 0;
-    std::array<SpeedSnapshot, 2> results_;
+    int nodeChoice_ = 0;
+    std::array<SpeedSnapshot, 6> results_;
     QThread* worker_ = nullptr;
     std::shared_ptr<std::atomic_bool> cancelled_;
     quint64 generation_ = 0;

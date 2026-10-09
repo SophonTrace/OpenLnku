@@ -10,9 +10,16 @@ Panel {
         anchors.fill: parent; spacing: 7
         RowLayout {
             Layout.fillWidth: true; Layout.preferredHeight: 40
-            AppIcon { kind: "speed"; ink: "#184cff"; width: 32; height: 32 }
+            AppIcon { kind: "speed"; ink: "#184cff"; Layout.preferredWidth: 32; Layout.preferredHeight: 32 }
             AppText { text: "网络测速"; color: "#080e36"; font.pixelSize: 21; font.weight: Font.Bold; Layout.leftMargin: 6 }
             Item { Layout.fillWidth: true }
+            SelectField {
+                Layout.preferredWidth: 130; implicitHeight: 35; fill: "#f7f9ff"
+                model: ["自动选择", "国内节点", "海外节点"]
+                currentIndex: speed.nodeChoice; enabled: !speed.running
+                onActivated: speed.nodeChoice = currentIndex
+                Accessible.name: "测速节点"
+            }
             ActionButton { text: speed.running ? "取消测速" : "开始测速"; accent: "#1b59d7"; implicitWidth: 122; implicitHeight: 41; onClicked: speed.running ? speed.cancel() : speed.start(client.interfaceIndex(), client.ip, client.adapterLabel) }
         }
         RowLayout {

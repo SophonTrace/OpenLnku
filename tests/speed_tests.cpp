@@ -75,6 +75,77 @@ private slots:
         QCOMPARE(speed.phase(), QStringLiteral("演示结果"));
     }
 
+    void nodeChoicesAndModeSlotsRemainIndependent() {
+        SpeedTest speed(true);
+
+        // The demo path exercises only the public snapshot-selection API; it
+        // never resolves a node or creates a socket.
+        QCOMPARE(speed.nodeChoice(), 0); // automatic
+        speed.preview();
+        QCOMPARE(speed.node(), QStringLiteral("Cloudflare · HKG"));
+        QCOMPARE(speed.exitIp(), QStringLiteral("192.0.2.86"));
+        const double autoRate = speed.download();
+
+        speed.setNodeChoice(1); // domestic
+        QCOMPARE(speed.phase(), QStringLiteral("准备测速"));
+        speed.preview();
+        QCOMPARE(speed.node(), QStringLiteral("国内 · 昆山"));
+        QCOMPARE(speed.exitIp(), QStringLiteral("192.0.2.86"));
+        const double domesticRate = speed.download();
+
+        speed.setNodeChoice(2); // overseas
+        QCOMPARE(speed.phase(), QStringLiteral("准备测速"));
+        speed.preview();
+        QCOMPARE(speed.node(), QStringLiteral("Cloudflare · HKG"));
+        QCOMPARE(speed.download(), autoRate);
+
+        // Switching back restores each node-choice snapshot rather than
+        // displaying the latest result from another choice.
+        speed.setNodeChoice(1);
+        QCOMPARE(speed.node(), QStringLiteral("国内 · 昆山"));
+        QCOMPARE(speed.download(), domesticRate);
+        speed.setNodeChoice(0);
+        QCOMPARE(speed.node(), QStringLiteral("Cloudflare · HKG"));
+        QCOMPARE(speed.download(), autoRate);
+
+        // The direct/proxy route dimension is also an independent result slot.
+        speed.setMode(1);
+        QCOMPARE(speed.nodeChoice(), 0);
+        QCOMPARE(speed.phase(), QStringLiteral("准备测速"));
+        speed.preview();
+        QCOMPARE(speed.exitIp(), QStringLiteral("198.51.100.24"));
+        QCOMPARE(speed.download(), autoRate);
+        speed.setNodeChoice(1);
+        QCOMPARE(speed.phase(), QStringLiteral("准备测速"));
+        speed.preview();
+        QCOMPARE(speed.node(), QStringLiteral("国内 · 昆山"));
+        QCOMPARE(speed.exitIp(), QStringLiteral("198.51.100.24"));
+
+        speed.setMode(0);
+        speed.setNodeChoice(1);
+        QCOMPARE(speed.node(), QStringLiteral("国内 · 昆山"));
+        QCOMPARE(speed.exitIp(), QStringLiteral("192.0.2.86"));
+        QCOMPARE(speed.download(), domesticRate);
+    }
+
+    void invalidNodeChoicesAreIgnored() {
+        SpeedTest speed(true);
+        QSignalSpy changed(&speed, &SpeedTest::changed);
+        QVERIFY(changed.isValid());
+
+        speed.setNodeChoice(-1);
+        speed.setNodeChoice(3);
+        QCOMPARE(speed.nodeChoice(), 0);
+        QCOMPARE(changed.size(), 0);
+
+        speed.setNodeChoice(2);
+        QCOMPARE(speed.nodeChoice(), 2);
+        QCOMPARE(changed.size(), 1);
+        speed.setNodeChoice(99);
+        QCOMPARE(speed.nodeChoice(), 2);
+        QCOMPARE(changed.size(), 1);
+    }
+
     void invalidModeValuesAreIgnored() {
         SpeedTest speed(true);
         QSignalSpy changed(&speed, &SpeedTest::changed);

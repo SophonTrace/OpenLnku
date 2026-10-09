@@ -17,3 +17,12 @@ docs/*.log
 docs/*acceptance*.json
 docs/update-acceptance-*.json
 docs/*integrity*.json
+aqtinstall.log
+design/
+docs/screenshots/
+docs/offline-audit-results.json
+docs/client-inspection.md
+docs/development-status.md
+docs/feature-plan.md
+docs/protocol-review.md
+docs/reconstruction-decisions.md

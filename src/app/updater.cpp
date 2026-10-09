@@ -17,6 +17,7 @@
 #include <QDateTime>
 #include <QSettings>
 #include <QSaveFile>
+#include <QVersionNumber>
 #include <functional>
 
 namespace {
@@ -92,10 +93,13 @@ void Updater::check() {
                 QFile key(":/updates/packaging/update-public-key.hex"); if (!key.open(QIODevice::ReadOnly)) { fail(QStringLiteral("更新验证密钥不可用")); return; }
                 if (!verifyUpdateSignature(manifestBytes_, signature, QByteArray::fromHex(key.readAll().trimmed()))) { fail(QStringLiteral("更新签名无效，已拒绝更新")); return; }
                 QString error;
-                if (!parseUpdateManifest(manifestBytes_, QCoreApplication::applicationVersion(), manifest_, error)) { manifest_ = {}; fail(error); return; }
+                if (!parseUpdateManifest(manifestBytes_, "0.0.0", manifest_, error)) { manifest_ = {}; fail(error); return; }
                 archiveUrl_ = assets.value(manifest_.archive);
                 if (tag != "v" + manifest_.version || archiveUrl_ != expectedBase + manifest_.archive || !releaseAsset(archiveUrl_)) { manifest_ = {}; fail(QStringLiteral("更新包与签名版本不一致")); return; }
                 QSettings("OpenNex", "OpenNex").setValue("updatesLastChecked", QDateTime::currentDateTimeUtc());
+                if (QVersionNumber::compare(QVersionNumber::fromString(manifest_.version), QVersionNumber::fromString(QCoreApplication::applicationVersion())) <= 0) {
+                    manifest_ = {}; status_ = QStringLiteral("已是最新版本"); return;
+                }
                 signature_ = signature; status_ = QStringLiteral("发现新版本 %1").arg(manifest_.version);
             });
         });

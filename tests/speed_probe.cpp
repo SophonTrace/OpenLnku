@@ -34,6 +34,8 @@ int main(int argc, char* argv[]) {
                       QStringLiteral("Required for direct mode: IPv4 assigned to that interface."), QStringLiteral("IPv4")});
     parser.addOption({QStringLiteral("adapter-name"),
                       QStringLiteral("Optional label for the selected interface."), QStringLiteral("name")});
+    parser.addOption({QStringLiteral("node"), QStringLiteral("Node: auto, domestic or overseas."), QStringLiteral("node"), QStringLiteral("auto")});
+    parser.addOption({QStringLiteral("complete"), QStringLiteral("Explicitly allow the full bounded bandwidth measurement instead of cancelling after IP.")});
     parser.process(application);
 
     if (!parser.isSet(QStringLiteral("network-probe"))) {
@@ -67,10 +69,15 @@ int main(int argc, char* argv[]) {
 
     SpeedTest speed(false);
     speed.setMode(modeName == QStringLiteral("direct") ? 1 : 0);
+    const auto nodeName = parser.value(QStringLiteral("node"));
+    if (nodeName != "auto" && nodeName != "domestic" && nodeName != "overseas") return 64;
+    speed.setNodeChoice(nodeName == "domestic" ? 1 : nodeName == "overseas" ? 2 : 0);
+    const bool full = parser.isSet(QStringLiteral("complete"));
     bool started = false;
     bool exitIpFound = false;
     bool watchdogExpired = false;
     int result = 3;
+    QString lastPhase;
     QTimer watchdog;
     watchdog.setSingleShot(true);
     QObject::connect(&watchdog, &QTimer::timeout, &application, [&] {
@@ -88,6 +95,7 @@ int main(int argc, char* argv[]) {
         }
     });
     QObject::connect(&speed, &SpeedTest::changed, &application, [&] {
+        if (speed.phase() != lastPhase) { lastPhase = speed.phase(); QTextStream(stdout) << "PHASE=" << lastPhase << "\n"; QTextStream(stdout).flush(); }
         if (!exitIpFound) {
             const QHostAddress address(speed.exitIp());
             if (!address.isNull()) {
@@ -95,13 +103,16 @@ int main(int argc, char* argv[]) {
                 QTextStream(stdout) << "MODE=" << modeName << "\nEXIT_IP="
                                     << speed.exitIp() << "\n";
                 QTextStream(stdout).flush();
-                speed.cancel();
+                if (!full) speed.cancel();
             }
         }
         if (started && !speed.running()) {
             watchdog.stop();
             if (watchdogExpired) {
                 result = 124;
+            } else if (full && speed.complete()) {
+                QTextStream(stdout) << "NODE=" << speed.node() << "\nDOWN=" << speed.download() << "\nUP=" << speed.upload() << "\nLATENCY=" << speed.latency() << "\nDATA_MIB=" << speed.dataMiB() << "\n";
+                result = 0;
             } else if (exitIpFound && speed.phase() == QStringLiteral("已取消")) {
                 result = 0;
             } else {
@@ -114,7 +125,7 @@ int main(int argc, char* argv[]) {
         }
     });
 
-    watchdog.start(50000);
+    watchdog.start(80000);
     started = true;
     speed.start(interfaceIndex, sourceIp, adapterName);
     if (!speed.running()) {
