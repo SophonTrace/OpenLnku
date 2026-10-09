@@ -93,7 +93,7 @@ public:
         }
         QByteArray headers = upload ? "POST " : "GET ";
         headers += path + " HTTP/1.1\r\nHost: " + host.toUtf8() + "\r\nUser-Agent: OpenNex/1.1\r\nAccept-Encoding: identity\r\nConnection: close\r\n";
-        if (host == "cloudflare-dns.com") headers += "Accept: application/dns-json\r\n";
+        if (host == "cloudflare-dns.com" || host == "dns.alidns.com") headers += "Accept: application/dns-json\r\n";
         if (upload) headers += "Content-Type: application/octet-stream\r\nContent-Length: " + QByteArray::number(upload) + "\r\n";
         else headers += "Cache-Control: no-cache\r\n";
         headers += "\r\n";
@@ -171,13 +171,19 @@ public:
     QString resolve() {
         if (!direct_) return {};
         // Query DNS over the same bound TLS connection, avoiding a TUN fake-IP answer.
-        const auto response = request("cloudflare-dns.com", "1.1.1.1", "/dns-query?name=speed.cloudflare.com&type=A", 0, 65536);
-        const auto doc = QJsonDocument::fromJson(response.body);
-        for (const auto& item : doc.object().value("Answer").toArray()) {
-            const auto record = item.toObject(); const QHostAddress address(record.value("data").toString());
-            if (record.value("type").toInt() == 1 && address.protocol() == QAbstractSocket::IPv4Protocol) return address.toString();
+        struct Resolver { QString host, address; QByteArray path; };
+        const Resolver resolvers[] = {{"dns.alidns.com", "223.5.5.5", "/resolve?name=speed.cloudflare.com&type=A"}, {"cloudflare-dns.com", "1.1.1.1", "/dns-query?name=speed.cloudflare.com&type=A"}};
+        for (const auto& resolver : resolvers) {
+            try {
+                const auto response = request(resolver.host, resolver.address, resolver.path, 0, 65536);
+                const auto doc = QJsonDocument::fromJson(response.body);
+                for (const auto& item : doc.object().value("Answer").toArray()) {
+                    const auto record = item.toObject(); const QHostAddress address(record.value("data").toString());
+                    if (record.value("type").toInt() == 1 && address.protocol() == QAbstractSocket::IPv4Protocol) return address.toString();
+                }
+            } catch (const std::exception&) { check(); }
         }
-        throw std::runtime_error("所选实体通道无法解析测速节点");
+        throw std::runtime_error("所选实体通道无法访问 DNS 服务或解析测速节点");
     }
 private:
     bool direct_, proxyResolved_ = false; QNetworkProxy proxy_; quint32 index_; QString source_; std::atomic_bool& cancel_; QElapsedTimer total_;

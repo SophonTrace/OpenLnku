@@ -11,3 +11,9 @@ reference/
 __pycache__/
 *.user
 docs/*-build.log
+packaging/manifest-*.txt
+packaging/uninstall-files.nsh
+docs/*.log
+docs/*acceptance*.json
+docs/update-acceptance-*.json
+docs/*integrity*.json
