@@ -1,0 +1,13 @@
+.deps/
+.private/
+*.dpapi
+*.pfx
+*.p12
+*.key
+build*/
+.audit-build/
+dist/
+reference/
+__pycache__/
+*.user
+docs/*-build.log
