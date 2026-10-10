@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 Panel {
+    function t(source) { return i18n.language === "en" ? i18n.translate(String(source)) : String(source) }
     id: card
     padding: 18
     implicitHeight: speed.error.length ? 464 : 438
@@ -11,16 +12,16 @@ Panel {
         RowLayout {
             Layout.fillWidth: true; Layout.preferredHeight: 40
             AppIcon { kind: "speed"; ink: "#184cff"; Layout.preferredWidth: 32; Layout.preferredHeight: 32 }
-            AppText { text: "网络测速"; color: "#080e36"; font.pixelSize: 21; font.weight: Font.Bold; Layout.leftMargin: 6 }
+            AppText { text: t("网络测速"); color: "#080e36"; font.pixelSize: 21; font.weight: Font.Bold; Layout.leftMargin: 6 }
             Item { Layout.fillWidth: true }
             SelectField {
                 Layout.preferredWidth: 130; implicitHeight: 35; fill: "#f7f9ff"
-                model: ["自动选择", "国内节点", "海外节点"]
+                model: [t("自动选择"), t("国内节点"), t("海外节点")]
                 currentIndex: speed.nodeChoice; enabled: !speed.running
                 onActivated: speed.nodeChoice = currentIndex
-                Accessible.name: "测速节点"
+                Accessible.name: t("测速节点")
             }
-            ActionButton { text: speed.running ? "取消测速" : "开始测速"; accent: "#1b59d7"; implicitWidth: 122; implicitHeight: 41; onClicked: speed.running ? speed.cancel() : speed.start(client.interfaceIndex(), client.ip, client.adapterLabel) }
+            ActionButton { text: speed.running ? t("取消测速") : t("开始测速"); accent: "#1b59d7"; implicitWidth: 122; implicitHeight: 41; onClicked: speed.running ? speed.cancel() : speed.start(client.interfaceIndex(), client.ip, client.adapterLabel) }
         }
         RowLayout {
             Layout.fillWidth: true; spacing: 12; Layout.preferredHeight: 33
@@ -29,25 +30,25 @@ Panel {
                 RowLayout {
                     anchors.fill: parent; anchors.margins: 2; spacing: 2
                     Repeater {
-                        model: ["系统路由", "实体网卡直连"]
+                        model: [t("系统路由"), t("实体网卡直连")]
                         Button {
                             required property int index; required property string modelData
                             Layout.fillWidth: true; Layout.fillHeight: true; enabled: !speed.running
                             onClicked: speed.mode = index
                             background: Rectangle { radius: 8; color: speed.mode === parent.index ? "#e9eeff" : "transparent" }
-                            contentItem: AppText { text: parent.modelData; color: speed.mode === parent.index ? "#184cff" : "#6e7d9d"; font.pixelSize: 12; font.weight: speed.mode === parent.index ? Font.Bold : Font.Normal; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                            contentItem: AppText { text: t(parent.modelData); color: speed.mode === parent.index ? "#184cff" : "#6e7d9d"; font.pixelSize: 12; font.weight: speed.mode === parent.index ? Font.Bold : Font.Normal; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         }
                     }
                 }
             }
             Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: 22; color: "#dce2ec"; Layout.leftMargin: 7; Layout.rightMargin: 7 }
-            AppText { text: "出口 IP"; color: "#7483a5"; font.pixelSize: 12 }
+            AppText { text: t("出口 IP"); color: "#7483a5"; font.pixelSize: 12 }
             AppText { text: speed.exitIp; color: "#080e36"; font.family: "Segoe UI"; font.pixelSize: 14; elide: Text.ElideMiddle; Layout.maximumWidth: 125 }
             Button {
                 implicitWidth: 22; implicitHeight: 24; padding: 0; onClicked: speed.copyExitIp(); enabled: speed.exitIp !== "—"
                 background: Rectangle { radius: 6; color: parent.hovered ? "#edf2ff" : "transparent" }
                 contentItem: AppIcon { kind: "copy"; ink: "#080e36" }
-                Accessible.name: "复制出口 IP"
+                Accessible.name: t("复制出口 IP")
             }
             Rectangle {
                 Layout.preferredWidth: Math.min(104, routeText.implicitWidth + 24); Layout.preferredHeight: 27; radius: 8; color: "#edf4ff"
@@ -62,10 +63,10 @@ Panel {
                 Layout.fillWidth: true; Layout.fillHeight: true; columns: 2; columnSpacing: 8; rowSpacing: 8
                 Repeater {
                     model: [
-                        {label:"下载", icon:"downloadArrow", value:speed.download > 0 ? speed.download.toFixed(1) : "—", unit:"Mbps", tint:"#245bd4", bg:"#eaf3ff"},
-                        {label:"上传", icon:"uploadArrow", value:speed.upload > 0 ? speed.upload.toFixed(1) : "—", unit:"Mbps", tint:"#008d55", bg:"#e5f5ed"},
-                        {label:"HTTP 延迟", icon:"clock", value:card.number(speed.latency), unit:"ms", tint:"#080e36", bg:"#f0f3ff"},
-                        {label:"抖动", icon:"heartbeat", value:card.number(speed.jitter), unit:"ms", tint:"#080e36", bg:"#f0f3ff"}
+                        {label:t("下载"), icon:"downloadArrow", value:speed.download > 0 ? speed.download.toFixed(1) : "—", unit:"Mbps", tint:"#245bd4", bg:"#eaf3ff"},
+                        {label:t("上传"), icon:"uploadArrow", value:speed.upload > 0 ? speed.upload.toFixed(1) : "—", unit:"Mbps", tint:"#008d55", bg:"#e5f5ed"},
+                        {label:t("HTTP 延迟"), icon:"clock", value:card.number(speed.latency), unit:"ms", tint:"#080e36", bg:"#f0f3ff"},
+                        {label:t("抖动"), icon:"heartbeat", value:card.number(speed.jitter), unit:"ms", tint:"#080e36", bg:"#f0f3ff"}
                     ]
                     Rectangle {
                         required property var modelData
@@ -75,7 +76,7 @@ Panel {
                             Rectangle { Layout.preferredWidth: 43; Layout.preferredHeight: 43; radius: 22; color: modelData.bg; AppIcon { anchors.centerIn: parent; kind: modelData.icon; ink: modelData.tint; width: 25; height: 25 } }
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 1
-                                AppText { text: modelData.label; font.pixelSize: 12; color: "#7483a5" }
+                                AppText { text: t(modelData.label); font.pixelSize: 12; color: "#7483a5" }
                                 RowLayout { spacing: 4; AppText { text: modelData.value; color: "#080e36"; font.family: "Segoe UI"; font.pixelSize: 24; font.weight: Font.Bold } AppText { text: modelData.unit; color: "#080e36"; font.family: "Segoe UI"; font.pixelSize: 12; Layout.alignment: Qt.AlignBaseline } }
                             }
                         }
@@ -90,8 +91,8 @@ Panel {
                 RowLayout {
                     spacing: 14
                     AppText { text: "Mbps"; color: "#7483a5"; font.pixelSize: 11 }
-                    Row { spacing: 6; Rectangle { width: 7; height: 7; radius: 4; color: "#3475ff"; anchors.verticalCenter: parent.verticalCenter } AppText { text: "下载"; color: "#7483a5"; font.pixelSize: 11 } }
-                    Row { spacing: 6; Rectangle { width: 7; height: 7; radius: 4; color: "#009d98"; anchors.verticalCenter: parent.verticalCenter } AppText { text: "上传"; color: "#7483a5"; font.pixelSize: 11 } }
+                    Row { spacing: 6; Rectangle { width: 7; height: 7; radius: 4; color: "#3475ff"; anchors.verticalCenter: parent.verticalCenter } AppText { text: t("下载"); color: "#7483a5"; font.pixelSize: 11 } }
+                    Row { spacing: 6; Rectangle { width: 7; height: 7; radius: 4; color: "#009d98"; anchors.verticalCenter: parent.verticalCenter } AppText { text: t("上传"); color: "#7483a5"; font.pixelSize: 11 } }
                     Item { Layout.fillWidth: true }
                 }
                 SpeedChart { Layout.fillWidth: true; Layout.fillHeight: true; samples: speed.history }
@@ -100,18 +101,18 @@ Panel {
         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: "#edf0f6" }
         RowLayout {
             Layout.fillWidth: true; Layout.preferredHeight: 21; spacing: 13
-            AppText { text: "节点"; color: "#7483a5"; font.pixelSize: 11 }
-            AppText { text: speed.node; color: "#080e36"; font.pixelSize: 12 }
+            AppText { text: t("节点"); color: "#7483a5"; font.pixelSize: 11 }
+            AppText { text: t(speed.node); color: "#080e36"; font.pixelSize: 12 }
             Item { Layout.fillWidth: true }
             Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: 14; color: "#dce2ec" }
             Item { Layout.fillWidth: true }
-            AppText { text: "本次流量"; color: "#7483a5"; font.pixelSize: 11 }
+            AppText { text: t("本次流量"); color: "#7483a5"; font.pixelSize: 11 }
             AppText { text: (speed.dataMiB * 1.048576).toFixed(0) + " MB"; color: "#080e36"; font.pixelSize: 12 }
             Item { Layout.fillWidth: true }
             Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: 14; color: "#dce2ec" }
             Item { Layout.fillWidth: true }
             AppText { text: speed.testedAt || "—"; color: "#526589"; font.pixelSize: 12 }
         }
-        AppText { visible: speed.error.length > 0; text: speed.error; color: "#d14b58"; font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+        AppText { visible: speed.error.length > 0; text: t(speed.error); color: "#d14b58"; font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.WordWrap }
     }
 }

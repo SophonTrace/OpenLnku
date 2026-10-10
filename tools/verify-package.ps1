@@ -2,7 +2,7 @@
 $ErrorActionPreference = 'Stop'
 $taskRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $version = (Get-Content -LiteralPath (Join-Path $taskRoot 'VERSION.txt') -Raw).Trim()
-$packageDir = Join-Path $taskRoot "dist\OpenNex-$version-windows-x64"
+$packageDir = Join-Path $taskRoot "dist\OpenLnku-$version-windows-x64"
 $imageDir = Join-Path $taskRoot 'docs\screenshots'
 New-Item -ItemType Directory -Path $imageDir -Force | Out-Null
 $image = Join-Path $imageDir 'portable.png'
@@ -17,7 +17,7 @@ $environment = @{
     QT_PLUGIN_PATH = ''
     QML2_IMPORT_PATH = ''
 }
-$process = Start-Process -FilePath (Join-Path $packageDir 'OpenNex.exe') -ArgumentList @('--demo', '--capture', ('"' + $image + '"'), '--demo-connect') -WorkingDirectory $packageDir -Environment $environment -WindowStyle Hidden -Wait -PassThru -RedirectStandardError $stderr
+$process = Start-Process -FilePath (Join-Path $packageDir 'OpenLnku.exe') -ArgumentList @('--demo', '--capture', ('"' + $image + '"'), '--demo-connect') -WorkingDirectory $packageDir -Environment $environment -WindowStyle Hidden -Wait -PassThru -RedirectStandardError $stderr
 Get-Content -LiteralPath $stderr
 if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $image)) { throw "Standalone package failed: $($process.ExitCode)" }
 $log = [IO.File]::ReadAllText($stderr)

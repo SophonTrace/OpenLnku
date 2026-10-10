@@ -21,7 +21,7 @@
 #include <functional>
 
 namespace {
-const QString repository = "https://github.com/SophonTrace/OpenNex/releases/download/";
+const QString repository = "https://github.com/SophonTrace/OpenLnku/releases/download/";
 bool releaseAsset(const QString& url) {
     const QUrl parsed(url);
     return parsed.scheme() == "https" && parsed.host() == "github.com" && parsed.userInfo().isEmpty() &&
@@ -46,7 +46,7 @@ Updater::Updater(bool demo, QObject* parent) : QObject(parent), demo_(demo) {
     }
     if (!demo_) QTimer::singleShot(15000, this, [this] {
         if (recovery_) return;
-        QSettings settings("OpenNex", "OpenNex");
+        QSettings settings("OpenLnku", "OpenLnku");
         const auto last = settings.value("updatesLastChecked").toDateTime();
         if (last.isValid() && last.secsTo(QDateTime::currentDateTimeUtc()) < 86400) return;
         check();
@@ -56,7 +56,7 @@ Updater::~Updater() { ++generation_; if (reply_) { reply_->disconnect(this); rep
 void Updater::fail(const QString& message) { status_ = message; ready_ = false; emit changed(); }
 void Updater::fetch(const QUrl& url, qsizetype limit, std::function<void(QByteArray)> next) {
     QNetworkRequest request(url); request.setTransferTimeout(15000);
-    request.setRawHeader("User-Agent", "OpenNex/1.1"); request.setRawHeader("Accept", "application/vnd.github+json");
+    request.setRawHeader("User-Agent", "OpenLnku/1.2"); request.setRawHeader("Accept", "application/vnd.github+json");
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     auto* response = network_.get(request); reply_ = response; const auto generation = generation_;
     auto data = std::make_shared<QByteArray>();
@@ -77,7 +77,7 @@ void Updater::check() {
     if (demo_) { status_ = QStringLiteral("离线演示 · 不访问更新服务器"); emit changed(); return; }
     ++generation_; manifest_ = {}; ready_ = false; progress_ = 0; notes_.clear(); status_ = QStringLiteral("检查新版本");
     QNetworkProxyFactory::setUseSystemConfiguration(true);
-    fetch(QUrl("https://api.github.com/repos/SophonTrace/OpenNex/releases/latest"), 1048576, [this](QByteArray bytes) {
+    fetch(QUrl("https://api.github.com/repos/SophonTrace/OpenLnku/releases/latest"), 1048576, [this](QByteArray bytes) {
         const auto object = QJsonDocument::fromJson(bytes).object();
         const auto tag = object.value("tag_name").toString();
         if (!QRegularExpression("^v[0-9]+\\.[0-9]+\\.[0-9]+$").match(tag).hasMatch() || object.value("draft").toBool() || object.value("prerelease").toBool()) { fail(QStringLiteral("发布版本格式无效")); return; }
@@ -96,7 +96,7 @@ void Updater::check() {
                 if (!parseUpdateManifest(manifestBytes_, "0.0.0", manifest_, error)) { manifest_ = {}; fail(error); return; }
                 archiveUrl_ = assets.value(manifest_.archive);
                 if (tag != "v" + manifest_.version || archiveUrl_ != expectedBase + manifest_.archive || !releaseAsset(archiveUrl_)) { manifest_ = {}; fail(QStringLiteral("更新包与签名版本不一致")); return; }
-                QSettings("OpenNex", "OpenNex").setValue("updatesLastChecked", QDateTime::currentDateTimeUtc());
+                QSettings("OpenLnku", "OpenLnku").setValue("updatesLastChecked", QDateTime::currentDateTimeUtc());
                 if (QVersionNumber::compare(QVersionNumber::fromString(manifest_.version), QVersionNumber::fromString(QCoreApplication::applicationVersion())) <= 0) {
                     manifest_ = {}; status_ = QStringLiteral("已是最新版本"); return;
                 }
@@ -117,7 +117,7 @@ void Updater::download() {
     download_ = std::make_unique<QFile>(jobDir_ + "/package.zip");
     if (!download_->open(QIODevice::WriteOnly | QIODevice::NewOnly)) { fail(QStringLiteral("无法保存更新包")); return; }
     QNetworkRequest request(QUrl{archiveUrl_}); request.setTransferTimeout(20000);
-    request.setRawHeader("User-Agent", "OpenNex/1.1"); request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setRawHeader("User-Agent", "OpenLnku/1.2"); request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     auto* response = network_.get(request); reply_ = response; const auto generation = ++generation_;
     auto count = std::make_shared<qint64>(0); auto hash = std::make_shared<QCryptographicHash>(QCryptographicHash::Sha256); auto good = std::make_shared<bool>(true);
     const auto drain = [this, response, count, hash, good, generation] {
@@ -168,10 +168,10 @@ void Updater::launchHelper(QJsonObject job) {
     savedHelper.close();
     const auto path = helperPath.toUtf8().toBase64();
     const auto helperHash = QCryptographicHash::hash(helperBytes, QCryptographicHash::Sha256).toHex();
-    const QString script = "$OpenNexJobJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + QString::fromLatin1(json) + "'))\n"
-        "$OpenNexHelperPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + QString::fromLatin1(path) + "'))\n"
-        "if ((Get-FileHash -LiteralPath $OpenNexHelperPath -Algorithm SHA256).Hash -ne '" + QString::fromLatin1(helperHash) + "') { throw 'Update helper integrity mismatch' }\n"
-        "& ([ScriptBlock]::Create([IO.File]::ReadAllText($OpenNexHelperPath, [Text.Encoding]::UTF8)))";
+    const QString script = "$OpenLnkuJobJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + QString::fromLatin1(json) + "'))\n"
+        "$OpenLnkuHelperPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + QString::fromLatin1(path) + "'))\n"
+        "if ((Get-FileHash -LiteralPath $OpenLnkuHelperPath -Algorithm SHA256).Hash -ne '" + QString::fromLatin1(helperHash) + "') { throw 'Update helper integrity mismatch' }\n"
+        "& ([ScriptBlock]::Create([IO.File]::ReadAllText($OpenLnkuHelperPath, [Text.Encoding]::UTF8)))";
     const auto encoded = QByteArray(reinterpret_cast<const char*>(script.utf16()), script.size() * 2).toBase64();
     const QString shell = qEnvironmentVariable("WINDIR") + "/System32/WindowsPowerShell/v1.0/powershell.exe";
     if (!QProcess::startDetached(shell, {"-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", QString::fromLatin1(encoded)}, jobDir_)) {

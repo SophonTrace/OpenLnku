@@ -1,6 +1,6 @@
 # Offline acceptance for tools/apply-update.ps1. Run from Windows PowerShell 5.1.
 # Every mutation is confined to a new, GUID-named .deps/update-acceptance tree.
-# This script never launches OpenNex.exe and never reads or writes HKCU.
+# This script never launches OpenLnku.exe and never reads or writes HKCU.
 [CmdletBinding()]
 param()
 
@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
 
 $workspace = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$releaseVersion = (Get-Content -LiteralPath (Join-Path $workspace 'VERSION.txt') -Raw).Trim()
 $acceptanceParent = Join-Path $workspace '.deps\update-acceptance'
 $null = New-Item -ItemType Directory -Path $acceptanceParent -Force
 $guid = [Guid]::NewGuid().ToString('N')
@@ -15,7 +16,7 @@ $runRoot = Join-Path $acceptanceParent $guid
 $reportPath = Join-Path $workspace ("docs\update-acceptance-{0}.json" -f $guid)
 $helperPath = Join-Path $PSScriptRoot 'apply-update.ps1'
 $oldExePath = Join-Path $workspace 'dist\OpenNex-1.0.1-windows-x64\OpenNex.exe'
-$newExePath = Join-Path $workspace 'build\OpenNex.exe'
+$newExePath = Join-Path $workspace 'build\OpenLnku.exe'
 $powerShell51 = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $checks = New-Object 'Collections.Generic.List[object]'
 $cases = New-Object 'Collections.Generic.List[object]'
@@ -109,19 +110,19 @@ function New-Scenario([string]$Name) {
     [IO.Directory]::CreateDirectory($temp) | Out-Null
 
     $oldExeBytes = [IO.File]::ReadAllBytes($script:oldExePath)
-    Write-Bytes (Join-Path $app 'OpenNex.exe') $oldExeBytes
+    Write-Bytes (Join-Path $app 'OpenLnku.exe') $oldExeBytes
     Write-Utf8NoBom (Join-Path $app '.update-acceptance-owned') 'isolated acceptance fixture'
-    Write-Utf8NoBom (Join-Path $app '.opennex-installed') 'OpenNex'
+    Write-Utf8NoBom (Join-Path $app '.opennex-installed') 'OpenLnku'
     Write-Bytes (Join-Path $app 'obsolete.txt') ([Text.Encoding]::UTF8.GetBytes('old managed file'))
     Write-Bytes (Join-Path $app 'user-note.txt') ([Text.Encoding]::UTF8.GetBytes('user-owned bytes, keep exactly'))
     Write-Bytes (Join-Path $app 'user-data.bin') ([byte[]](0, 1, 2, 10, 13, 255))
     $oldPayload = [ordered]@{
         version = '1.0.1'
-        files = @([ordered]@{ path = 'OpenNex.exe'; bytes = $oldExeBytes.Length; sha256 = Get-Sha256Bytes $oldExeBytes },
+        files = @([ordered]@{ path = 'OpenLnku.exe'; bytes = $oldExeBytes.Length; sha256 = Get-Sha256Bytes $oldExeBytes },
                   [ordered]@{ path = 'obsolete.txt'; bytes = [Text.Encoding]::UTF8.GetByteCount('old managed file'); sha256 = Get-Sha256Bytes ([Text.Encoding]::UTF8.GetBytes('old managed file')) })
     }
     Write-Utf8NoBom (Join-Path $app 'payload-manifest.json') (ConvertTo-Json -InputObject $oldPayload -Depth 5 -Compress)
-    Write-Utf8NoBom (Join-Path $app '.opennex-files.txt') "OpenNex.exe`r`nobsolete.txt`r`npayload-manifest.json`r`n"
+    Write-Utf8NoBom (Join-Path $app '.opennex-files.txt') "OpenLnku.exe`r`nobsolete.txt`r`npayload-manifest.json`r`n"
 
     return [pscustomobject]@{ name = $Name; root = $root; app = $app; cache = $cache; temp = $temp }
 }
@@ -137,20 +138,20 @@ function New-Package($Scenario, [switch]$Traversal, [switch]$Duplicate, [switch]
     $newExeBytes = [IO.File]::ReadAllBytes($script:newExePath)
     $newData = [Text.Encoding]::UTF8.GetBytes('new managed payload v1.1.0')
     $files = New-Object 'Collections.Generic.List[object]'
-    $files.Add([ordered]@{ path = 'OpenNex.exe'; bytes = $newExeBytes.Length; sha256 = Get-Sha256Bytes $newExeBytes })
+    $files.Add([ordered]@{ path = 'OpenLnku.exe'; bytes = $newExeBytes.Length; sha256 = Get-Sha256Bytes $newExeBytes })
     $files.Add([ordered]@{ path = 'new-file.txt'; bytes = $newData.Length; sha256 = Get-Sha256Bytes $newData })
     if ($Conflict) {
         $conflictBytes = [Text.Encoding]::UTF8.GetBytes('must not overwrite user data')
         $files.Add([ordered]@{ path = 'user-note.txt'; bytes = $conflictBytes.Length; sha256 = Get-Sha256Bytes $conflictBytes })
     }
-    $payload = [ordered]@{ version = '1.1.0'; files = @($files.ToArray()) }
+    $payload = [ordered]@{ version = $script:releaseVersion; files = @($files.ToArray()) }
     $payloadBytes = [Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject $payload -Depth 6 -Compress))
-    $prefix = 'OpenNex-1.1.0-windows-x64/'
+     $prefix = "OpenLnku-$script:releaseVersion-windows-x64/"
     $zipPath = Join-Path $Scenario.cache 'package.zip'
     $file = [IO.File]::Open($zipPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
     $zip = New-Object IO.Compression.ZipArchive($file, [IO.Compression.ZipArchiveMode]::Create, $false)
     try {
-        Add-ZipBytes $zip ($prefix + 'OpenNex.exe') $newExeBytes
+        Add-ZipBytes $zip ($prefix + 'OpenLnku.exe') $newExeBytes
         Add-ZipBytes $zip ($prefix + 'new-file.txt') $newData
         if ($Duplicate) { Add-ZipBytes $zip ($prefix + 'new-file.txt') $newData }
         if ($Conflict) { Add-ZipBytes $zip ($prefix + 'user-note.txt') $conflictBytes }
@@ -177,7 +178,7 @@ function New-ApplyingJournal($Scenario, [string[]]$Changed, [string[]]$Old, [swi
 }
 
 function Corrupt-ManagedExe($Scenario) {
-    Write-Bytes (Join-Path $Scenario.app 'OpenNex.exe') ([byte[]](0x4d, 0x5a, 0x00, 0x01, 0x02, 0x03, 0x04))
+    Write-Bytes (Join-Path $Scenario.app 'OpenLnku.exe') ([byte[]](0x4d, 0x5a, 0x00, 0x01, 0x02, 0x03, 0x04))
 }
 
 function Invoke-Helper($Scenario, $Archive, [hashtable]$Overrides = @{}) {
@@ -186,7 +187,7 @@ function Invoke-Helper($Scenario, $Archive, [hashtable]$Overrides = @{}) {
         parentId = 0
         appRoot = $Scenario.app
         jobRoot = $Scenario.cache
-        version = '1.1.0'
+        version = $script:releaseVersion
         archive = $Archive.path
         sha256 = $Archive.sha256
         bytes = $Archive.bytes
@@ -198,9 +199,9 @@ function Invoke-Helper($Scenario, $Archive, [hashtable]$Overrides = @{}) {
     $jobB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($jobJson))
     $helperB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($script:helperPath))
     $wrapper = '$ErrorActionPreference = ''Stop''; if ($PSVersionTable.PSVersion.Major -ne 5) { exit 90 }; '
-    $wrapper += '$OpenNexJobJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''' + $jobB64 + ''')); '
-    $wrapper += '$OpenNexHelperPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''' + $helperB64 + ''')); '
-    $wrapper += '& ([ScriptBlock]::Create([IO.File]::ReadAllText($OpenNexHelperPath, [Text.Encoding]::UTF8))); exit 0'
+    $wrapper += '$OpenLnkuJobJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''' + $jobB64 + ''')); '
+    $wrapper += '$OpenLnkuHelperPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''' + $helperB64 + ''')); '
+    $wrapper += '& ([ScriptBlock]::Create([IO.File]::ReadAllText($OpenLnkuHelperPath, [Text.Encoding]::UTF8))); exit 0'
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($wrapper))
     [IO.File]::WriteAllText((Join-Path $Scenario.root 'powershell-encoded-command.txt'), $encoded, (New-Object Text.UTF8Encoding($false)))
     $stdout = Join-Path $Scenario.root 'helper.stdout.txt'
@@ -264,7 +265,7 @@ try {
     $oldVersion = (Get-Item -LiteralPath $oldExePath).VersionInfo.ProductVersion
     $newVersion = (Get-Item -LiteralPath $newExePath).VersionInfo.ProductVersion
     if ($oldVersion -ne '1.0.1') { throw "Expected old package PE ProductVersion 1.0.1, got $oldVersion." }
-    if ($newVersion -ne '1.1.0') { throw "Expected new build PE ProductVersion 1.1.0, got $newVersion." }
+    if ($newVersion -ne (Get-Content -LiteralPath (Join-Path $workspace 'VERSION.txt') -Raw).Trim()) { throw "Expected current build PE ProductVersion, got $newVersion." }
 
     [IO.Directory]::CreateDirectory($runRoot) | Out-Null
     Write-Utf8NoBom (Join-Path $runRoot '.update-acceptance-owned') 'Only this GUID acceptance tree is owned by verify-updater.ps1.'
@@ -279,15 +280,15 @@ try {
         Add-Check 'successful-update' ($run.exitCode -eq 0 -and $run.result -and $run.result.status -eq 'success') 'helper-success' $(if ($run.result) { $run.result.message } else { 'no result.json' })
         if (-not ($run.exitCode -eq 0 -and $run.result -and $run.result.status -eq 'success')) { return }
         $app = $scenario.app
-        Add-Check 'successful-update' ((Get-Item -LiteralPath (Join-Path $app 'OpenNex.exe')).VersionInfo.ProductVersion -eq '1.1.0') 'new-exe-version'
+        Add-Check 'successful-update' ((Get-Item -LiteralPath (Join-Path $app 'OpenLnku.exe')).VersionInfo.ProductVersion -eq $newVersion) 'new-exe-version'
         Add-Check 'successful-update' (-not (Test-Path -LiteralPath (Join-Path $app 'obsolete.txt'))) 'obsolete-managed-file-removed'
         Add-Check 'successful-update' ((Test-Path -LiteralPath (Join-Path $app 'new-file.txt')) -and [IO.File]::ReadAllText((Join-Path $app 'new-file.txt')) -ceq 'new managed payload v1.1.0') 'new-managed-file-installed'
         Add-Check 'successful-update' ([IO.File]::ReadAllText((Join-Path $app 'user-note.txt')) -ceq 'user-owned bytes, keep exactly') 'unknown-user-file-preserved'
         Add-Check 'successful-update' (([IO.File]::ReadAllBytes((Join-Path $app 'user-data.bin')) -join ',') -ceq '0,1,2,10,13,255') 'binary-user-file-preserved'
         $newManifest = [IO.File]::ReadAllText((Join-Path $app '.opennex-files.txt'), [Text.Encoding]::UTF8) -split "`r?`n" | Where-Object { $_ }
-        $expectedManifest = @('OpenNex.exe', 'new-file.txt', 'payload-manifest.json')
+        $expectedManifest = @('OpenLnku.exe', 'new-file.txt', 'payload-manifest.json')
         Add-Check 'successful-update' (@(Compare-Object ($newManifest | Sort-Object) ($expectedManifest | Sort-Object)).Count -eq 0) 'installed-managed-manifest-updated' ($newManifest -join ',')
-        Add-Check 'successful-update' (([IO.File]::ReadAllText((Join-Path $app '.opennex-installed')) -ceq 'OpenNex') -and (Test-Path -LiteralPath (Join-Path $app '.update-acceptance-owned'))) 'acceptance-marker-retained'
+        Add-Check 'successful-update' (([IO.File]::ReadAllText((Join-Path $app '.opennex-installed')) -ceq 'OpenLnku') -and (Test-Path -LiteralPath (Join-Path $app '.update-acceptance-owned'))) 'acceptance-marker-retained'
         $after = Snapshot-Files $app
         Add-Check 'successful-update' ((Compare-Snapshots $before $after) -eq $false) 'install-tree-changed'
     }
@@ -331,7 +332,7 @@ try {
         $scenario = New-Scenario 'recover-journal'
         $archive = New-Package $scenario
         $before = Snapshot-Files $scenario.app
-        New-ApplyingJournal $scenario @('OpenNex.exe') @('OpenNex.exe')
+        New-ApplyingJournal $scenario @('OpenLnku.exe') @('OpenLnku.exe')
         Corrupt-ManagedExe $scenario
         # A recovery must work without relying on a previously downloaded ZIP.
         [IO.File]::Delete($archive.path)
@@ -346,7 +347,7 @@ try {
     Invoke-Case 'missing-recovery-backup-refused' {
         $scenario = New-Scenario 'recover-missing-backup'
         $archive = New-Package $scenario
-        New-ApplyingJournal $scenario @('OpenNex.exe') @('OpenNex.exe') -OmitBackup
+        New-ApplyingJournal $scenario @('OpenLnku.exe') @('OpenLnku.exe') -OmitBackup
         Corrupt-ManagedExe $scenario
         [IO.File]::Delete($archive.path)
         $corruptBefore = Snapshot-Files $scenario.app
@@ -377,7 +378,7 @@ try {
         checks = @($checks.ToArray())
         failureCount = $failedChecks.Count
         fatal = $fatal
-        safety = @('testOnly=true', 'parentId=0', 'no OpenNex.exe process launched', 'no HKCU access by harness/helper test branch', 'no recursive cleanup performed')
+        safety = @('testOnly=true', 'parentId=0', 'no OpenLnku.exe process launched', 'no HKCU access by harness/helper test branch', 'no recursive cleanup performed')
     }
     if ($runRoot -and (Test-Path -LiteralPath $runRoot)) {
         Write-Utf8NoBom $reportPath (ConvertTo-Json -InputObject $report -Depth 10)

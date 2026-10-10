@@ -32,7 +32,7 @@ try {
     $publicBlob = [byte[]](@(0x45,0x43,0x53,0x31,0x20,0,0,0) + $parameters.Q.X + $parameters.Q.Y)
     if ([Convert]::ToHexString($publicBlob) -ne (Get-Content -LiteralPath $publicPath -Raw).Trim()) { throw 'Private and embedded public key do not match.' }
     $version = (Get-Content (Join-Path $taskRoot 'VERSION.txt') -Raw).Trim()
-    $archive = Get-Item -LiteralPath (Join-Path $taskRoot "dist/OpenNex-$version-windows-x64.zip")
+    $archive = Get-Item -LiteralPath (Join-Path $taskRoot "dist/OpenLnku-$version-windows-x64.zip")
     $manifest = [ordered]@{schema=1;version=$version;platform='windows-x64';archive=$archive.Name;bytes=$archive.Length;sha256=(Get-FileHash -LiteralPath $archive.FullName).Hash.ToLowerInvariant()}
     $bytes = [Text.UTF8Encoding]::new($false).GetBytes(($manifest | ConvertTo-Json -Compress))
     $signature = $ecdsa.SignData($bytes, [Security.Cryptography.HashAlgorithmName]::SHA256, [Security.Cryptography.DSASignatureFormat]::IeeeP1363FixedFieldConcatenation)

@@ -54,7 +54,7 @@ struct TestKey {
 
 QByteArray manifestBytes(const QString& version = QStringLiteral("1.2.0"),
                          const QString& platform = QStringLiteral("windows-x64"),
-                         const QString& archive = QStringLiteral("OpenNex-1.2.0-windows-x64.zip"),
+                         const QString& archive = QStringLiteral("OpenLnku-1.2.0-windows-x64.zip"),
                          const QString& sha256 = QString(64, QLatin1Char('a')),
                          const QJsonValue& bytes = QJsonValue(12345),
                          const QJsonValue& schema = QJsonValue(1)) {
@@ -115,7 +115,7 @@ private slots:
         const QByteArray bytes = manifestBytes();
         QVERIFY2(parseUpdateManifest(bytes, QStringLiteral("1.1.0"), result, error), qPrintable(error));
         QCOMPARE(result.version, QStringLiteral("1.2.0"));
-        QCOMPARE(result.archive, QStringLiteral("OpenNex-1.2.0-windows-x64.zip"));
+        QCOMPARE(result.archive, QStringLiteral("OpenLnku-1.2.0-windows-x64.zip"));
         QCOMPARE(result.sha256, QString(64, QLatin1Char('a')));
         QCOMPARE(result.bytes, qint64{12345});
     }
@@ -124,18 +124,18 @@ private slots:
         QTest::addColumn<QByteArray>("bytes");
         QTest::addColumn<QString>("installedVersion");
         QTest::newRow("invalid-json") << QByteArray("{bad") << QStringLiteral("1.1.0");
-        QTest::newRow("wrong-schema") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenNex-1.2.0-windows-x64.zip"), QString(64, QLatin1Char('a')), QJsonValue(12345), QJsonValue(2)) << QStringLiteral("1.1.0");
+        QTest::newRow("wrong-schema") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenLnku-1.2.0-windows-x64.zip"), QString(64, QLatin1Char('a')), QJsonValue(12345), QJsonValue(2)) << QStringLiteral("1.1.0");
         QTest::newRow("wrong-platform") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-arm64")) << QStringLiteral("1.1.0");
         QTest::newRow("bad-version") << manifestBytes(QStringLiteral("v1.2.0")) << QStringLiteral("1.1.0");
         QTest::newRow("bad-installed-version") << manifestBytes() << QStringLiteral("1.1");
-        QTest::newRow("same-version") << manifestBytes(QStringLiteral("1.1.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenNex-1.1.0-windows-x64.zip")) << QStringLiteral("1.1.0");
-        QTest::newRow("downgrade") << manifestBytes(QStringLiteral("1.0.9"), QStringLiteral("windows-x64"), QStringLiteral("OpenNex-1.0.9-windows-x64.zip")) << QStringLiteral("1.1.0");
-        QTest::newRow("wrong-archive") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("../OpenNex.zip")) << QStringLiteral("1.1.0");
-        QTest::newRow("uppercase-hash") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenNex-1.2.0-windows-x64.zip"), QString(64, QLatin1Char('A'))) << QStringLiteral("1.1.0");
-        QTest::newRow("short-hash") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenNex-1.2.0-windows-x64.zip"), QString(63, QLatin1Char('a'))) << QStringLiteral("1.1.0");
-        QTest::newRow("zero-bytes") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenNex-1.2.0-windows-x64.zip"), QString(64, QLatin1Char('a')), QJsonValue(0)) << QStringLiteral("1.1.0");
-        QTest::newRow("fractional-bytes") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenNex-1.2.0-windows-x64.zip"), QString(64, QLatin1Char('a')), QJsonValue(12.5)) << QStringLiteral("1.1.0");
-        QTest::newRow("too-large") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenNex-1.2.0-windows-x64.zip"), QString(64, QLatin1Char('a')), QJsonValue(268435457)) << QStringLiteral("1.1.0");
+        QTest::newRow("same-version") << manifestBytes(QStringLiteral("1.1.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenLnku-1.1.0-windows-x64.zip")) << QStringLiteral("1.1.0");
+        QTest::newRow("downgrade") << manifestBytes(QStringLiteral("1.0.9"), QStringLiteral("windows-x64"), QStringLiteral("OpenLnku-1.0.9-windows-x64.zip")) << QStringLiteral("1.1.0");
+        QTest::newRow("wrong-archive") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("../OpenLnku.zip")) << QStringLiteral("1.1.0");
+        QTest::newRow("uppercase-hash") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenLnku-1.2.0-windows-x64.zip"), QString(64, QLatin1Char('A'))) << QStringLiteral("1.1.0");
+        QTest::newRow("short-hash") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenLnku-1.2.0-windows-x64.zip"), QString(63, QLatin1Char('a'))) << QStringLiteral("1.1.0");
+        QTest::newRow("zero-bytes") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenLnku-1.2.0-windows-x64.zip"), QString(64, QLatin1Char('a')), QJsonValue(0)) << QStringLiteral("1.1.0");
+        QTest::newRow("fractional-bytes") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenLnku-1.2.0-windows-x64.zip"), QString(64, QLatin1Char('a')), QJsonValue(12.5)) << QStringLiteral("1.1.0");
+        QTest::newRow("too-large") << manifestBytes(QStringLiteral("1.2.0"), QStringLiteral("windows-x64"), QStringLiteral("OpenLnku-1.2.0-windows-x64.zip"), QString(64, QLatin1Char('a')), QJsonValue(268435457)) << QStringLiteral("1.1.0");
         QTest::newRow("oversized-json") << QByteArray(65537, ' ') << QStringLiteral("1.1.0");
     }
 

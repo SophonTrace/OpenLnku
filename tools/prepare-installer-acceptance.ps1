@@ -13,8 +13,13 @@ if (Test-Path $oldPackage) {
     if (-not $resolvedOld.StartsWith($resolvedTest + '\', [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath (Join-Path $resolvedOld '.acceptance-owned'))) { throw 'Unowned old fixture.' }
     Remove-Item -LiteralPath $resolvedOld -Recurse -Force
 }
-Copy-Item -LiteralPath (Join-Path $taskRoot "dist\OpenNex-$OldVersion-windows-x64") -Destination $oldPackage -Recurse
-[IO.File]::WriteAllText((Join-Path $oldPackage '.acceptance-owned'), 'OpenNex isolated installer acceptance')
+$previousPackage = Join-Path $taskRoot "dist\OpenLnku-$OldVersion-windows-x64"
+if (-not (Test-Path -LiteralPath $previousPackage)) { $previousPackage = Join-Path $taskRoot "dist\OpenNex-$OldVersion-windows-x64" }
+Copy-Item -LiteralPath $previousPackage -Destination $oldPackage -Recurse
+if (Test-Path -LiteralPath (Join-Path $oldPackage 'OpenNex.exe')) {
+    Rename-Item -LiteralPath (Join-Path $oldPackage 'OpenNex.exe') -NewName 'OpenLnku.exe'
+}
+[IO.File]::WriteAllText((Join-Path $oldPackage '.acceptance-owned'), 'OpenLnku isolated installer acceptance')
 [IO.File]::WriteAllText((Join-Path $oldPackage 'obsolete-managed.txt'), 'Old managed file: must disappear during upgrade.')
 & (Join-Path $PSScriptRoot 'installer.ps1') -Acceptance -FileOnlyAcceptance:$FileOnly -Version $OldVersion -PackageDirectory $oldPackage -OutputFile (Join-Path $testRoot 'setup-old.exe')
 & (Join-Path $PSScriptRoot 'installer.ps1') -Acceptance -FileOnlyAcceptance:$FileOnly -OutputFile (Join-Path $testRoot 'setup-new.exe')

@@ -1,11 +1,11 @@
 param([int]$ProcessId = $PID)
 $ErrorActionPreference = 'Stop'
-if (-not ('OpenNexProcessIntegrity' -as [type])) {
+if (-not ('OpenLnkuProcessIntegrity' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
-public static class OpenNexProcessIntegrity {
+public static class OpenLnkuProcessIntegrity {
     [DllImport("kernel32.dll", SetLastError=true)] static extern IntPtr OpenProcess(uint access, bool inherit, uint id);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
     [DllImport("advapi32.dll", SetLastError=true)] static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
@@ -32,5 +32,5 @@ public static class OpenNexProcessIntegrity {
 }
 '@
 }
-$level = [OpenNexProcessIntegrity]::Read([uint32]$ProcessId)
+$level = [OpenLnkuProcessIntegrity]::Read([uint32]$ProcessId)
 [pscustomobject]@{ processId = $ProcessId; integrityRID = $level; level = $(if ($level -lt 8192) { 'Low' } elseif ($level -lt 12288) { 'Medium' } else { 'High or System' }) }

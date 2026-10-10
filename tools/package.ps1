@@ -6,8 +6,8 @@ $qtSdk = (Resolve-Path $QtRoot).Path
 $version = (Get-Content -LiteralPath (Join-Path $taskRoot 'VERSION.txt') -Raw).Trim()
 $publisherIntegrity = & (Join-Path $PSScriptRoot 'inspect-process-integrity.ps1')
 if ($publisherIntegrity.integrityRID -lt 8192) { throw 'Packaging requires normal Medium user integrity. Low tool execution cannot repair release labels.' }
-$outputDir = Join-Path $taskRoot ("dist\OpenNex-$version-windows-x64")
-$executable = Join-Path $taskRoot 'build\OpenNex.exe'
+$outputDir = Join-Path $taskRoot ("dist\OpenLnku-$version-windows-x64")
+$executable = Join-Path $taskRoot 'build\OpenLnku.exe'
 if (-not (Test-Path -LiteralPath $executable)) { throw 'Build the Qt application first.' }
 if (Test-Path -LiteralPath $outputDir) {
     $resolvedOutput = (Resolve-Path $outputDir).Path
@@ -17,11 +17,11 @@ if (Test-Path -LiteralPath $outputDir) {
     Remove-Item -LiteralPath $resolvedOutput -Recurse -Force
 }
 New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
-[IO.File]::WriteAllText((Join-Path $outputDir '.jlu-generated'), 'OpenNex package staging directory')
+[IO.File]::WriteAllText((Join-Path $outputDir '.jlu-generated'), 'OpenLnku package staging directory')
 Copy-Item -LiteralPath $executable -Destination $outputDir
 $deployTemp = Join-Path $taskRoot '.deps\deploy-temp'
 New-Item -ItemType Directory -Path $deployTemp -Force | Out-Null
-$deployArguments = @('--release', '--qmldir', ('"' + (Join-Path $taskRoot 'ui') + '"'), '--include-plugins', 'qoffscreen', '--no-translations', '--no-compiler-runtime', ('"' + (Join-Path $outputDir 'OpenNex.exe') + '"'))
+$deployArguments = @('--release', '--qmldir', ('"' + (Join-Path $taskRoot 'ui') + '"'), '--include-plugins', 'qoffscreen', '--no-translations', '--no-compiler-runtime', ('"' + (Join-Path $outputDir 'OpenLnku.exe') + '"'))
 $deploy = Start-Process -FilePath (Join-Path $qtSdk 'bin\windeployqt.exe') -ArgumentList $deployArguments -WindowStyle Hidden -Wait -PassThru -Environment @{ TEMP = $deployTemp; TMP = $deployTemp; PATH = (Join-Path $qtSdk 'bin') + ';' + $env:PATH } -RedirectStandardOutput (Join-Path $taskRoot 'docs\qtdeploy.log') -RedirectStandardError (Join-Path $taskRoot 'docs\qtdeploy-error.log')
 if ($deploy.ExitCode -ne 0) {
     Get-Content -LiteralPath (Join-Path $taskRoot 'docs\qtdeploy-error.log')
@@ -34,7 +34,12 @@ $redist = Get-ChildItem -LiteralPath $redistRoot -Directory | Where-Object Name 
 $crt = Get-ChildItem -LiteralPath (Join-Path $redist.FullName 'x64') -Directory | Where-Object Name -Like '*.CRT' | Select-Object -First 1
 if (-not $crt) { throw 'MSVC x64 app-local CRT was not found.' }
 Get-ChildItem -LiteralPath $crt.FullName -Filter '*.dll' -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $outputDir }
-foreach ($name in @('README.md', 'LICENSE', 'THIRD_PARTY.md')) { Copy-Item -LiteralPath (Join-Path $taskRoot $name) -Destination $outputDir }
+foreach ($name in @('README.md', 'README.en.md', 'LICENSE', 'THIRD_PARTY.md')) { Copy-Item -LiteralPath (Join-Path $taskRoot $name) -Destination $outputDir }
+$packageDocs = Join-Path $outputDir 'docs'
+New-Item -ItemType Directory -Path $packageDocs -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $taskRoot 'docs/images') -Destination $packageDocs -Recurse
+New-Item -ItemType Directory -Path (Join-Path $outputDir 'assets/branding') -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $taskRoot 'assets/branding/mark.svg') -Destination (Join-Path $outputDir 'assets/branding')
 $licenses = Join-Path $taskRoot 'packaging\qt-licenses'
 if (-not (Test-Path -LiteralPath (Join-Path $licenses 'manifest.json'))) { throw 'Qt license materials are missing.' }
 $licenseDir = Join-Path $outputDir 'Qt-Licenses'
@@ -55,10 +60,11 @@ New-Item -ItemType Directory -Path $sourceTools -Force | Out-Null
 Get-ChildItem -LiteralPath (Join-Path $taskRoot 'tools') -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $sourceTools }
 $sourceDocs = Join-Path $sourceDir 'docs'
 New-Item -ItemType Directory -Path $sourceDocs -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $taskRoot 'docs/images') -Destination $sourceDocs -Recurse
 foreach ($name in @("release-$version.md")) {
     Copy-Item -LiteralPath (Join-Path $taskRoot ('docs\' + $name)) -Destination $sourceDocs
 }
-foreach ($name in @('CMakeLists.txt', 'VERSION.txt', 'README.md', 'LICENSE', 'THIRD_PARTY.md', '.gitignore')) {
+foreach ($name in @('CMakeLists.txt', 'VERSION.txt', 'README.md', 'README.en.md', 'LICENSE', 'THIRD_PARTY.md', '.gitignore')) {
     Copy-Item -LiteralPath (Join-Path $taskRoot $name) -Destination $sourceDir -Force
 }
 # The application sources and dynamic libraries remain accessible for rebuilding/replacing.
@@ -68,9 +74,9 @@ $payload = @(Get-ChildItem -LiteralPath $outputDir -Recurse -Force -File | Sort-
     @{path=[IO.Path]::GetRelativePath($outputDir,$_.FullName).Replace('\','/');bytes=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}
 })
 [IO.File]::WriteAllText((Join-Path $outputDir 'payload-manifest.json'), (@{version=$version;files=$payload}|ConvertTo-Json -Depth 5 -Compress),[Text.UTF8Encoding]::new($false))
-$zipPath = Join-Path $taskRoot ("dist\OpenNex-$version-windows-x64.zip")
+$zipPath = Join-Path $taskRoot ("dist\OpenLnku-$version-windows-x64.zip")
 Compress-Archive -LiteralPath $outputDir -DestinationPath $zipPath -Force
 Write-Output $zipPath
-& (Join-Path $PSScriptRoot 'check-release-integrity.ps1') -Executable (Join-Path $outputDir 'OpenNex.exe') |
+& (Join-Path $PSScriptRoot 'check-release-integrity.ps1') -Executable (Join-Path $outputDir 'OpenLnku.exe') |
     Set-Content -LiteralPath (Join-Path $taskRoot "docs\release-integrity-$version.json") -Encoding utf8
 Write-Output 'Release executable integrity: verified normal. Distribute the ZIP or use the verified staging executable.'

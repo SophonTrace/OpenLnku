@@ -31,7 +31,7 @@ bool parseUpdateManifest(const QByteArray& bytes, const QString& installedVersio
     }
     const auto candidate = QVersionNumber::fromString(version), current = QVersionNumber::fromString(installedVersion);
     if (QVersionNumber::compare(candidate, current) <= 0) { error = QStringLiteral("已是最新版本"); return false; }
-    const QString archive = "OpenNex-" + version + "-windows-x64.zip";
+    const QString archive = "OpenLnku-" + version + "-windows-x64.zip";
     const QString sha256 = object.value("sha256").toString(); const double length = object.value("bytes").toDouble(-1);
     if (object.value("archive").toString() != archive || !QRegularExpression("^[0-9a-f]{64}$").match(sha256).hasMatch() || !std::isfinite(length) || std::floor(length) != length || length <= 0 || length > 268435456) {
         error = QStringLiteral("更新包名称、大小或校验值无效"); return false;

@@ -97,7 +97,7 @@ void reportRegistryAccess(const QString& identity) {
         LSTATUS setStatus = ERROR_INVALID_HANDLE;
         LSTATUS deleteStatus = ERROR_INVALID_HANDLE;
         if (createStatus == ERROR_SUCCESS) {
-            const QString valueName = QStringLiteral("__OpenNexProbe_%1_%2")
+            const QString valueName = QStringLiteral("__OpenLnkuProbe_%1_%2")
                                           .arg(GetCurrentProcessId()).arg(index);
             const std::wstring nativeValueName = valueName.toStdWString();
             const DWORD value = static_cast<DWORD>(probes[index].access);
@@ -125,8 +125,8 @@ int main(int argc, char** argv) {
     if (args.size() != 2 || (args[1] != "legacy" && args[1] != "current")) return 2;
 
     const QString identity = args[1] == "legacy"
-        ? QStringLiteral("OpenNexAcceptanceLegacy")
-        : QStringLiteral("OpenNexAcceptance");
+        ? QStringLiteral("OpenLnkuAcceptanceLegacy")
+        : QStringLiteral("OpenLnkuAcceptance");
     QSettings settings(identity, identity);
     qInfo().noquote() << "fixture.mode=" << args[1]
                       << "QSettings.fileName=" << settings.fileName()

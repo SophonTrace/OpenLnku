@@ -104,7 +104,7 @@ public:
             socket.waitForEncrypted(100);
         }
         QByteArray headers = upload ? "POST " : "GET ";
-        headers += path + " HTTP/1.1\r\nHost: " + host.toUtf8() + (port == 443 ? QByteArray() : ":" + QByteArray::number(port)) + "\r\nUser-Agent: OpenNex/1.1\r\nAccept-Encoding: identity\r\nConnection: keep-alive\r\n";
+        headers += path + " HTTP/1.1\r\nHost: " + host.toUtf8() + (port == 443 ? QByteArray() : ":" + QByteArray::number(port)) + "\r\nUser-Agent: OpenLnku/1.1\r\nAccept-Encoding: identity\r\nConnection: keep-alive\r\n";
         if (host == "cloudflare-dns.com" || host == "dns.alidns.com") headers += "Accept: application/dns-json\r\n";
         if (upload) headers += QByteArray("Content-Type: ") + (form ? "application/x-www-form-urlencoded" : "application/octet-stream") + "\r\nContent-Length: " + QByteArray::number(upload) + "\r\n";
         else headers += "Cache-Control: no-cache\r\n";
@@ -126,7 +126,7 @@ public:
             if (socket.waitForBytesWritten(100)) idle.restart();
             if (progress && upload) progress(quint64(std::max<qint64>(0, sent - socket.bytesToWrite())), double(measured.elapsed()));
         }
-        if (upload && qEnvironmentVariableIsSet("OPENNEX_SPEED_DIAGNOSTIC")) qInfo("speed upload: sent=%lld plainPending=%lld tlsPending=%lld", sent, socket.bytesToWrite(), socket.encryptedBytesToWrite());
+        if (upload && qEnvironmentVariableIsSet("OPENLNKU_SPEED_DIAGNOSTIC")) qInfo("speed upload: sent=%lld plainPending=%lld tlsPending=%lld", sent, socket.bytesToWrite(), socket.encryptedBytesToWrite());
         QByteArray buffer, body, mime;
         bool gotHeader = false, chunked = false, close = false;
         qint64 contentLength = -1, remainingChunk = -1, received = 0;
@@ -144,7 +144,7 @@ public:
                     continue;
                 }
                 const auto header = buffer.left(end); const auto status = header.left(header.indexOf("\r\n")).split(' ');
-                if (upload && qEnvironmentVariableIsSet("OPENNEX_SPEED_DIAGNOSTIC")) qInfo("speed upload: HTTP status=%s", status.size() >= 2 ? status[1].constData() : "invalid");
+                if (upload && qEnvironmentVariableIsSet("OPENLNKU_SPEED_DIAGNOSTIC")) qInfo("speed upload: HTTP status=%s", status.size() >= 2 ? status[1].constData() : "invalid");
                 if (status.size() < 2 || status[1] != "200") throw std::runtime_error("测速节点返回失败状态");
                 for (const auto& line : header.split('\n')) {
                     const auto name = line.left(line.indexOf(':')).trimmed().toLower();

@@ -1,5 +1,5 @@
 #requires -Version 7.4
-param([string]$Executable = (Join-Path $PSScriptRoot '..\build\OpenNex.exe'), [switch]$RequireNormal)
+param([string]$Executable = (Join-Path $PSScriptRoot '..\build\OpenLnku.exe'), [switch]$RequireNormal)
 $ErrorActionPreference = 'Stop'
 $resolved = (Resolve-Path -LiteralPath $Executable).Path
 # Read only. Never change workspace ACLs or elevate the application.

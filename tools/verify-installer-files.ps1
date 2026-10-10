@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $taskRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $version = (Get-Content -LiteralPath (Join-Path $taskRoot 'VERSION.txt') -Raw).Trim()
-$oldVersion = (Get-Item -LiteralPath (Join-Path $TestRoot 'package-old\OpenNex.exe')).VersionInfo.ProductVersion
+$oldVersion = (Get-Item -LiteralPath (Join-Path $TestRoot 'package-old\OpenLnku.exe')).VersionInfo.ProductVersion
 $testRoot = [IO.Path]::GetFullPath($TestRoot)
 $installDir = [IO.Path]::GetFullPath((Join-Path $testRoot '安装 空间'))
 $shortcutDir = [IO.Path]::GetFullPath((Join-Path $testRoot 'shortcuts'))
@@ -123,9 +123,9 @@ try {
     $manifestPath = Join-Path $installDir '.opennex-files.txt'
     $obsoletePath = Join-Path $installDir 'obsolete-managed.txt'
     $readmePath = Join-Path $installDir 'README.md'
-    $appPath = Join-Path $installDir 'OpenNex.exe'
+    $appPath = Join-Path $installDir 'OpenLnku.exe'
 
-    Add-Check (([IO.File]::ReadAllText($markerPath)).Trim() -eq 'OpenNexAcceptance') 'old package ownership marker' ''
+    Add-Check (([IO.File]::ReadAllText($markerPath)).Trim() -eq 'OpenLnkuAcceptance') 'old package ownership marker' ''
     Add-Check ((Get-Item -LiteralPath $appPath).VersionInfo.ProductVersion -eq $oldVersion) 'old package version installed' "ProductVersion=$oldVersion"
     Add-Check (Test-Path -LiteralPath $readmePath -PathType Leaf) 'old package README installed' ''
     Add-Check (Test-Path -LiteralPath $obsoletePath -PathType Leaf) 'old-only managed file installed' ''
@@ -134,14 +134,14 @@ try {
     $missingOldFiles = @(Get-MissingManagedFiles -Root $installDir -Manifest $oldManifest)
     $missingOldSummary = [string]::Join(', ', @($missingOldFiles | Select-Object -First 20))
     Add-Check ($missingOldFiles.Count -eq 0) 'all old manifest files are installed' "missing=$($missingOldFiles.Count) $missingOldSummary"
-    Add-Check ((Test-Path -LiteralPath (Join-Path $shortcutDir 'OpenNex.lnk')) -and (Test-Path -LiteralPath (Join-Path $shortcutDir 'Uninstall.lnk'))) 'isolated shortcuts installed' ''
+    Add-Check ((Test-Path -LiteralPath (Join-Path $shortcutDir 'OpenLnku.lnk')) -and (Test-Path -LiteralPath (Join-Path $shortcutDir 'Uninstall.lnk'))) 'isolated shortcuts installed' ''
 
     $userFile = Join-Path $installDir 'user-note.txt'
     $userContent = 'User-owned file retained across upgrade and uninstall.'
     [IO.File]::WriteAllText($userFile, $userContent, [Text.UTF8Encoding]::new($false))
     Start-Installer 'setup-new.exe'
 
-    Add-Check (([IO.File]::ReadAllText($markerPath)).Trim() -eq 'OpenNexAcceptance') 'upgrade retains ownership marker' ''
+    Add-Check (([IO.File]::ReadAllText($markerPath)).Trim() -eq 'OpenLnkuAcceptance') 'upgrade retains ownership marker' ''
     Add-Check ((Get-Item -LiteralPath $appPath).VersionInfo.ProductVersion -eq $version) 'new package version installed' "ProductVersion=$version"
     Add-Check (Test-Path -LiteralPath $readmePath -PathType Leaf) 'new package README installed' ''
     Add-Check (-not (Test-Path -LiteralPath $obsoletePath)) 'upgrade removes old-only managed file' ''
@@ -198,7 +198,7 @@ try {
     $report = [ordered]@{
         schemaVersion = 1
         test = 'isolated-installer-files-only'
-        identity = 'OpenNexAcceptance'
+        identity = 'OpenLnkuAcceptance'
         startedUtc = $startedUtc.ToString('o')
         finishedUtc = [DateTime]::UtcNow.ToString('o')
         overall = $overall

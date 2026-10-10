@@ -15,12 +15,12 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "OpenNex\0"
-            VALUE "FileDescription", "OpenNex Network Authentication Client\0"
+            VALUE "CompanyName", "OpenLnku\0"
+            VALUE "FileDescription", "OpenLnku Network Authentication Client\0"
             VALUE "FileVersion", "@PROJECT_VERSION@\0"
-            VALUE "InternalName", "OpenNex\0"
-            VALUE "OriginalFilename", "OpenNex.exe\0"
-            VALUE "ProductName", "OpenNex\0"
+            VALUE "InternalName", "OpenLnku\0"
+            VALUE "OriginalFilename", "OpenLnku.exe\0"
+            VALUE "ProductName", "OpenLnku\0"
             VALUE "ProductVersion", "@PROJECT_VERSION@\0"
         END
     END

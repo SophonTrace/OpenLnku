@@ -1,8 +1,9 @@
 import QtQuick
 Item {
+    function t(source) { return i18n.language === "en" ? i18n.translate(String(source)) : String(source) }
     id: gauge
     property real value: 0
-    property string phase: "准备测速"
+    property string phase: t("准备测速")
     property bool complete: false
     readonly property real ceiling: value <= 600 ? 600 : Math.ceil(value / 600) * 600
     Canvas {
@@ -39,13 +40,13 @@ Item {
         spacing: 1
         AppText { anchors.horizontalCenter: parent.horizontalCenter; text: gauge.value > 0 ? gauge.value.toFixed(1) : "—"; font.family: "Segoe UI"; font.pixelSize: 33; font.weight: Font.Bold; color: "#080e36" }
         AppText { anchors.horizontalCenter: parent.horizontalCenter; text: "Mbps"; font.pixelSize: 10; color: "#7483a5" }
-        AppText { anchors.horizontalCenter: parent.horizontalCenter; text: gauge.phase.indexOf("上传") >= 0 ? "上传速度" : "下载速度"; font.pixelSize: 11; color: "#080e36" }
+        AppText { anchors.horizontalCenter: parent.horizontalCenter; text: gauge.phase.indexOf("上传") >= 0 ? t("上传速度") : t("下载速度"); font.pixelSize: 11; color: "#080e36" }
         Rectangle {
             width: Math.max(80, stateText.implicitWidth + 32); height: 23; radius: 12
             anchors.horizontalCenter: parent.horizontalCenter; color: gauge.complete ? "#e5f5ed" : "#edf3ff"
             Row { anchors.centerIn: parent; spacing: 5
                 Rectangle { width: 11; height: 11; radius: 6; color: "#008d55"; visible: gauge.complete; anchors.verticalCenter: parent.verticalCenter; AppIcon { anchors.fill: parent; anchors.margins: 1; kind: "check"; ink: "white" } }
-                AppText { id: stateText; text: gauge.complete ? "测速完成" : gauge.phase; color: gauge.complete ? "#008d55" : "#245ac0"; font.pixelSize: 9; font.weight: Font.DemiBold }
+                AppText { id: stateText; text: gauge.complete ? t("测速完成") : t(gauge.phase); color: gauge.complete ? "#008d55" : "#245ac0"; font.pixelSize: 9; font.weight: Font.DemiBold }
             }
         }
     }

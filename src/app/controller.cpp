@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include <QFileDialog>
 #include <QFile>
+#include <QFileInfo>
 #include <QDir>
 #include <QClipboard>
 #include <QNetworkProxyFactory>
@@ -16,7 +17,7 @@
 namespace {
 QByteArray protect(QByteArray bytes, bool encrypt) {
     DATA_BLOB input{static_cast<DWORD>(bytes.size()), reinterpret_cast<BYTE*>(bytes.data())}, output{};
-    const BOOL ok = encrypt ? CryptProtectData(&input, L"OpenNex credential", nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output)
+    const BOOL ok = encrypt ? CryptProtectData(&input, L"OpenLnku credential", nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output)
                             : CryptUnprotectData(&input, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output);
     if (!ok) { bytes.fill('\0'); return {}; }
     QByteArray result(reinterpret_cast<const char*>(output.pbData), static_cast<qsizetype>(output.cbData));
@@ -44,7 +45,9 @@ Controller::Controller(bool demo, QObject* parent, const QString& settingsFile) 
     clock_.start();
     if (!settingsFile.isEmpty()) settings_ = std::make_unique<QSettings>(settingsFile, QSettings::IniFormat);
     else if (!demo_) {
-        settings_ = std::make_unique<QSettings>("OpenNex", "OpenNex");
+        settings_ = std::make_unique<QSettings>("OpenLnku", "OpenLnku");
+        QSettings previous("OpenNex", "OpenNex");
+        migrateOpenNexPreferences(*settings_, previous);
         QSettings legacy("JluConnect", "JluConnect");
         migratePreferences(*settings_, legacy);
     }
@@ -59,7 +62,7 @@ Controller::Controller(bool demo, QObject* parent, const QString& settingsFile) 
         if (QUrl(url).isValid() && QUrl(url).scheme() == "https" && !QUrl(url).host().isEmpty() && QUrl(url).userInfo().isEmpty()) probeUrl_ = url;
     }
     session_.setAutoReconnect(autoReconnect_);
-    if (!demo_ && !settings_->value("startupConfigured", false).toBool())
+    if (!demo_ && (!settings_->value("startupConfigured", false).toBool() || !settings_->value("brandStartupMigrated", false).toBool()))
         setStartWithWindows(settings_->value("startWithWindows", true).toBool());
     if (demo_) { savedUser_ = "example001"; savedPassword_ = "demo1234"; }
     else {
@@ -290,7 +293,7 @@ void Controller::resume() { lastPump_ = now(); session_.resume(lastPump_); synch
 void Controller::simulateResume() { if (!demo_) return; suspend(); QTimer::singleShot(500, this, &Controller::resume); }
 bool Controller::nativeEventFilter(const QByteArray&, void* message, qintptr*) {
     auto* m = static_cast<MSG*>(message);
-    if (m->message == RegisterWindowMessageW(L"OpenNex.ShowWindow")) { emit showWindowRequested(); return true; }
+    if (m->message == RegisterWindowMessageW(L"OpenLnku.ShowWindow")) { emit showWindowRequested(); return true; }
     if (m->message == WM_POWERBROADCAST) {
         if (m->wParam == PBT_APMSUSPEND) suspend();
         else if (m->wParam == PBT_APMRESUMEAUTOMATIC) resume();
@@ -308,8 +311,8 @@ void Controller::requestQuit() {
     if (session_.state() == jlu::State::Paused) { quitRequested_ = false; emit readyToQuit(); return; }
     QTimer::singleShot(6500, this, [this] { if (quitRequested_) { quitRequested_ = false; emit readyToQuit(); } });
 }
-void Controller::exportLogs() {
-    const auto path = QFileDialog::getSaveFileName(nullptr, QStringLiteral("导出运行日志"), "opennex.log", "Log (*.log)");
+void Controller::exportLogs(const QString& dialogTitle) {
+    const auto path = QFileDialog::getSaveFileName(nullptr, dialogTitle, "openlnku.log", "Log (*.log)");
     if (path.isEmpty()) return;
     QFile file(path);
     if (file.open(QIODevice::WriteOnly)) file.write(logs_.join('\n').toUtf8());
@@ -452,7 +455,7 @@ void Controller::updateNotifications(std::uint64_t time) {
 bool Controller::startWithWindows() const {
     if (demo_) return true;
     QSettings run("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", QSettings::NativeFormat);
-    const auto command = run.value("OpenNex").toString();
+    const auto command = run.value("OpenLnku").toString();
     const auto executable = '"' + QDir::toNativeSeparators(QCoreApplication::applicationFilePath()) + '"';
     return command == executable || command.startsWith(executable + ' ');
 }
@@ -465,11 +468,17 @@ void Controller::setStartWithWindows(bool enabled) {
         log(message); emit changed();
         QTimer::singleShot(0, this, [this, message] { emit errorRequested(message); }); return;
     }
-    if (enabled) run.setValue("OpenNex", '"' + QDir::toNativeSeparators(QCoreApplication::applicationFilePath()) + '"' + " --tray");
-    else if (startWithWindows()) run.remove("OpenNex");
+    if (enabled) run.setValue("OpenLnku", '"' + QDir::toNativeSeparators(QCoreApplication::applicationFilePath()) + '"' + " --tray");
+    else if (startWithWindows()) run.remove("OpenLnku");
     run.sync();
     if (run.status() == QSettings::NoError && startWithWindows() == enabled) {
         savePreference("startupConfigured", true); savePreference("startWithWindows", enabled);
+        const auto previous = run.value("OpenNex").toString();
+        if (previous.startsWith('"') && previous.indexOf('"', 1) > 1) {
+            const auto oldExecutable = previous.mid(1, previous.indexOf('"', 1) - 1);
+            if (QFileInfo(oldExecutable).fileName().compare("OpenNex.exe", Qt::CaseInsensitive) == 0) { run.remove("OpenNex"); run.sync(); }
+        }
+        if (run.status() == QSettings::NoError) savePreference("brandStartupMigrated", true);
     } else {
         const auto message = QStringLiteral("无法保存开机自启动设置，请检查当前用户的注册表写入权限。");
         log(message); emit errorRequested(message);

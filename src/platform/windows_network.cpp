@@ -52,7 +52,7 @@ std::vector<Adapter> adapters() {
     std::vector<Adapter> out;
     if (result != NO_ERROR) return out;
     wchar_t hostname[256]{}; DWORD hostSize = 256; GetComputerNameW(hostname, &hostSize);
-    auto hostText = utf8(hostname); if (hostText.size() > 32) hostText = "OpenNex";
+    auto hostText = utf8(hostname); if (hostText.size() > 32) hostText = "OpenLnku";
     for (auto* a = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(storage.data()); a; a = a->Next) {
         if (a->OperStatus != IfOperStatusUp || a->PhysicalAddressLength != 6 ||
             (a->IfType != IF_TYPE_ETHERNET_CSMACD && a->IfType != IF_TYPE_IEEE80211) || a->TunnelType != TUNNEL_TYPE_NONE) continue;

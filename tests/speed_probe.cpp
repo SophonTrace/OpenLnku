@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
     const int proxyQuery = runInternalProxyQuery(argc, argv);
     if (proxyQuery >= 0) return proxyQuery;
     QCoreApplication application(argc, argv);
-    application.setApplicationName(QStringLiteral("OpenNex speed probe"));
+    application.setApplicationName(QStringLiteral("OpenLnku speed probe"));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral(

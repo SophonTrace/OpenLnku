@@ -3,6 +3,7 @@
 #include "speedtest.h"
 #include "updater.h"
 #include "proxy_query.h"
+#include "localization.h"
 #include <windows.h>
 #include <shellapi.h>
 #include <QApplication>
@@ -57,26 +58,27 @@ int main(int argc, char* argv[]) {
     const int proxyQuery = runInternalProxyQuery(argc, argv);
     if (proxyQuery >= 0) return proxyQuery;
     QApplication app(argc, argv);
-    QCoreApplication::setOrganizationName("OpenNex");
-    QCoreApplication::setApplicationName("OpenNex");
-    QGuiApplication::setApplicationDisplayName("OpenNex");
-    QCoreApplication::setApplicationVersion(OPENNEX_VERSION);
+    QCoreApplication::setOrganizationName("OpenLnku");
+    QCoreApplication::setApplicationName("OpenLnku");
+    QGuiApplication::setApplicationDisplayName("OpenLnku");
+    QCoreApplication::setApplicationVersion(OPENLNKU_VERSION);
     const auto arguments = app.arguments();
-    QCommandLineParser parser; parser.setApplicationDescription("OpenNex"); parser.addHelpOption(); parser.addVersionOption();
+    QCommandLineParser parser; parser.setApplicationDescription("OpenLnku"); parser.addHelpOption(); parser.addVersionOption();
     parser.addOptions({{"live", "Network authentication"}, {"demo", "Offline demonstration"}, {"tray", "Start in system tray"},
         {"capture", "Capture offline UI", "file"}, {"demo-connect", "Connect offline simulation"},
         {"page", "Preview page", "index"}, {"settings-file", "Isolated offline settings", "file"},
         {"test-identity", "Isolated offline instance identity", "name"}, {"scale", "Preview window size", "size"},
         {"quit-after", "Offline test lifetime", "milliseconds"}, {"verify-tray", "Offline tray acceptance"},
         {"verify-ui", "Offline license and close acceptance"}, {"demo-license", "Preview in-app license"},
-        {"verify-tray-failure", "Offline tray failure recovery acceptance"}});
+        {"verify-tray-failure", "Offline tray failure recovery acceptance"}, {"language", "Interface language (zh-CN or en)", "language"}, {"verify-language", "Offline language switch acceptance"}});
     parser.process(app);
     const auto mode = startupMode(arguments);
     if (mode == StartupMode::Invalid) { qCritical("Invalid mode: offline options require --demo."); return 2; }
     const bool demo = mode == StartupMode::Demo, capture = parser.isSet("capture");
+    if (parser.isSet("language") && parser.value("language") != "zh-CN" && parser.value("language") != "en") return 2;
     const QString testIdentity = parser.value("test-identity");
-    if (!testIdentity.isEmpty() && !QRegularExpression("^OpenNexAcceptance[A-Za-z0-9_-]*$").match(testIdentity).hasMatch()) return 2;
-    const QString identity = testIdentity.isEmpty() ? QStringLiteral("OpenNex") : testIdentity;
+    if (!testIdentity.isEmpty() && !QRegularExpression("^OpenLnkuAcceptance[A-Za-z0-9_-]*$").match(testIdentity).hasMatch()) return 2;
+    const QString identity = testIdentity.isEmpty() ? QStringLiteral("OpenLnku") : testIdentity;
     const QString installerMutex = "Local\\" + identity + ".Installer";
     if (HANDLE installing = OpenMutexW(SYNCHRONIZE, FALSE, reinterpret_cast<LPCWSTR>(installerMutex.utf16()))) {
         CloseHandle(installing); return 4;
@@ -87,12 +89,20 @@ int main(int argc, char* argv[]) {
     QLockFile lock(path + "/" + identity + (demo ? "-demo.lock" : "-live.lock"));
     const QString mutexName = "Local\\" + identity + ".App." + (demo ? "Demo" : "Live");
     HANDLE instanceMutex = nullptr;
+    // A previous-brand client may still own the same authentication port.
+    if (!demo && testIdentity.isEmpty()) {
+        if (HANDLE previous = OpenMutexW(SYNCHRONIZE, FALSE, L"Local\\OpenNex.App.Live")) {
+            CloseHandle(previous);
+            if (const auto hwnd = FindWindowW(nullptr, L"OpenNex")) PostMessageW(hwnd, RegisterWindowMessageW(L"OpenNex.ShowWindow"), 0, 0);
+            return 3;
+        }
+    }
     if (!capture) {
         instanceMutex = CreateMutexW(nullptr, FALSE, reinterpret_cast<LPCWSTR>(mutexName.utf16()));
         if (!instanceMutex) return 3;
         if (GetLastError() == ERROR_ALREADY_EXISTS || !lock.tryLock(0)) {
-            const auto hwnd = FindWindowW(nullptr, demo ? L"OpenNex · 离线演示" : L"OpenNex");
-            if (hwnd) PostMessageW(hwnd, RegisterWindowMessageW(L"OpenNex.ShowWindow"), 0, 0);
+            const auto hwnd = FindWindowW(nullptr, demo ? L"OpenLnku · 离线演示" : L"OpenLnku");
+            if (hwnd) PostMessageW(hwnd, RegisterWindowMessageW(L"OpenLnku.ShowWindow"), 0, 0);
             CloseHandle(instanceMutex); return 3;
         }
     }
@@ -105,6 +115,7 @@ int main(int argc, char* argv[]) {
     QQuickStyle::setStyle("Basic"); app.setFont(QFont("Microsoft YaHei UI", 10));
     const QIcon icon(":/branding/app.png"); app.setWindowIcon(icon);
     const bool trayAvailable = QSystemTrayIcon::isSystemTrayAvailable() && !capture;
+    Localization localization(demo, parser.value("settings-file"), parser.value("language"));
     Controller controller(demo, nullptr, parser.value("settings-file"));
     SpeedTest speed(demo);
     Updater updates(demo);
@@ -114,14 +125,15 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("speed", &speed);
     engine.rootContext()->setContextProperty("updates", &updates);
     engine.rootContext()->setContextProperty("trayAvailable", trayAvailable);
-    engine.loadFromModule("OpenNex", "Main");
+    engine.rootContext()->setContextProperty("i18n", &localization);
+    engine.loadFromModule("OpenLnku", "Main");
     if (engine.rootObjects().isEmpty()) { if (instanceMutex) CloseHandle(instanceMutex); return 1; }
     auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().front());
     if (!window) { if (instanceMutex) CloseHandle(instanceMutex); return 1; }
     window->setIcon(icon);
     std::shared_ptr<QSettings> windowSettings;
     if (!parser.value("settings-file").isEmpty()) windowSettings = std::make_shared<QSettings>(parser.value("settings-file"), QSettings::IniFormat);
-    else if (!demo) windowSettings = std::make_shared<QSettings>("OpenNex", "OpenNex");
+    else if (!demo) windowSettings = std::make_shared<QSettings>("OpenLnku", "OpenLnku");
     if (windowSettings && windowSettings->value("windowLayoutVersion").toString() == "1.1" && windowSettings->contains("windowGeometry")) {
         const auto saved = windowSettings->value("windowGeometry").toRect();
         for (const auto* screen : QGuiApplication::screens()) {
@@ -153,17 +165,23 @@ int main(int argc, char* argv[]) {
     }
     QSystemTrayIcon tray(icon);
     QMenu menu;
-    auto* openAction = menu.addAction(QStringLiteral("打开 OpenNex"), window, showWindow);
+    auto* openAction = menu.addAction(QStringLiteral("打开 OpenLnku"), window, showWindow);
     auto* connectAction = menu.addAction(QStringLiteral("连接"), &controller, &Controller::connectSaved);
     auto* disconnectAction = menu.addAction(QStringLiteral("断开连接"), &controller, &Controller::disconnectNow);
     auto* retryAction = menu.addAction(QStringLiteral("立即重试"), &controller, &Controller::retryNow);
     menu.addSeparator();
     auto* reconnectAction = menu.addAction(QStringLiteral("自动重连")); reconnectAction->setCheckable(true);
     QObject::connect(reconnectAction, &QAction::triggered, &controller, &Controller::setAutoReconnect);
-    menu.addSeparator(); menu.addAction(QStringLiteral("退出 OpenNex"), &controller, &Controller::requestQuit);
+    menu.addSeparator(); auto* quitAction = menu.addAction(QStringLiteral("退出 OpenLnku"), &controller, &Controller::requestQuit);
     tray.setContextMenu(&menu);
     QString previousIconKey;
     const auto updateTray = [&] {
+        openAction->setText(localization.translate(QStringLiteral("打开 OpenLnku")));
+        connectAction->setText(localization.translate(QStringLiteral("连接")));
+        disconnectAction->setText(localization.translate(QStringLiteral("断开连接")));
+        retryAction->setText(localization.translate(QStringLiteral("立即重试")));
+        reconnectAction->setText(localization.translate(QStringLiteral("自动重连")));
+        quitAction->setText(localization.translate(QStringLiteral("退出 OpenLnku")));
         connectAction->setEnabled(!controller.busy());
         disconnectAction->setEnabled(controller.active());
         retryAction->setVisible(controller.retrySeconds() > 0);
@@ -173,11 +191,13 @@ int main(int argc, char* argv[]) {
             tray.setIcon(statusIcon(controller.online() ? QColor("#28A876") : controller.busy() ? QColor("#E4A43C") : QColor("#8994A7")));
             previousIconKey = key;
         }
-        tray.setToolTip(QStringLiteral("OpenNex %1\n%2\n%3 · %4").arg(QCoreApplication::applicationVersion(), controller.status(), controller.adapterLabel(), controller.uptime()));
+        tray.setToolTip(QStringLiteral("OpenLnku %1\n%2\n%3 · %4").arg(QCoreApplication::applicationVersion(), localization.translate(controller.status()), localization.translate(controller.adapterLabel()), controller.uptime()));
     };
     QObject::connect(&controller, &Controller::changed, &tray, updateTray); updateTray();
+    QObject::connect(&localization, &Localization::languageChanged, &tray, updateTray);
+    QObject::connect(&localization, &Localization::errorRequested, &controller, &Controller::errorRequested);
     QObject::connect(&controller, &Controller::notificationRequested, &tray, [&](const QString& title, const QString& message) {
-        if (trayAvailable) tray.showMessage(title, message, QSystemTrayIcon::Information, 7000);
+        if (trayAvailable) tray.showMessage(localization.translate(title), localization.translate(message), QSystemTrayIcon::Information, 7000);
     });
     QObject::connect(&tray, &QSystemTrayIcon::messageClicked, window, showWindow);
     QObject::connect(&controller, &Controller::readyToQuit, &app, [&] { window->setProperty("forceClose", true); app.quit(); });
@@ -214,6 +234,21 @@ int main(int argc, char* argv[]) {
         });
     });
     trayWatchdog.start();
+    if (demo && parser.isSet("verify-language")) {
+        window->setProperty("page",3);
+        QTimer::singleShot(100,&localization,[&] { localization.setLanguage("en"); });
+        QTimer::singleShot(450,&app,[&] {
+            const auto title = window->findChild<QObject*>("pageTitle");
+            const auto selector = window->findChild<QObject*>("languageSelector");
+            if (!title || title->property("text").toString() != "Settings" || !selector || selector->property("currentIndex").toInt() != 1 || openAction->text() != "Open OpenLnku") { app.exit(12); return; }
+            localization.setLanguage("zh-CN");
+        });
+        QTimer::singleShot(850,&app,[&] {
+            const auto title = window->findChild<QObject*>("pageTitle");
+            if (!title || title->property("text").toString() != QStringLiteral("设置") || openAction->text() != QStringLiteral("打开 OpenLnku")) { app.exit(13); return; }
+            qInfo("offline language acceptance: English=1 Chinese=1 tray=1 demo=1"); app.exit(0);
+        });
+    }
     if (demo) qInfo("offline mode: trayAvailable=%d", trayAvailable);
     if (demo && parser.isSet("demo-license")) QTimer::singleShot(0, &controller, &Controller::openLicense);
     if (demo && parser.isSet("verify-ui")) {

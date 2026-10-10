@@ -114,7 +114,7 @@ public:
     Q_INVOKABLE void simulateDrop();
     Q_INVOKABLE void simulateResume();
     Q_INVOKABLE void refreshNetwork();
-    Q_INVOKABLE void exportLogs();
+    Q_INVOKABLE void exportLogs(const QString& dialogTitle);
     Q_INVOKABLE void clearLogs();
     Q_INVOKABLE void requestQuit();
     Q_INVOKABLE void connectSaved();

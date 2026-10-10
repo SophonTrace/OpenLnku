@@ -1,5 +1,5 @@
 #requires -Version 7.4
-param([int]$Page = 0, [switch]$Connected, [string]$Scale = '', [double]$Dpi = 1, [switch]$License)
+param([int]$Page = 0, [switch]$Connected, [string]$Scale = '', [double]$Dpi = 1, [switch]$License, [ValidateSet('zh-CN','en')][string]$Language = 'zh-CN')
 $ErrorActionPreference = 'Stop'
 $taskRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $env:PATH = (Join-Path $taskRoot '.deps\Qt\6.8.3\msvc2022_64\bin') + ';' + $env:PATH
@@ -12,11 +12,13 @@ $env:QT_SCALE_FACTOR = "$Dpi"
 $imageDir = Join-Path $taskRoot 'docs\screenshots'
 New-Item -ItemType Directory -Path $imageDir -Force | Out-Null
 $suffix = if ($License) { '-license' } elseif ($Scale) { "-$Scale" } elseif ($Dpi -ne 1) { "-dpi$Dpi" } else { '' }
+if ($Language -eq 'en') { $suffix += '-en' }
 $output = Join-Path $imageDir "page-$Page$suffix.png"
 $arguments = @('--demo', '--capture', ('"' + $output + '"'), '--page', "$Page")
+$arguments += @('--language', $Language)
 if ($Connected) { $arguments += '--demo-connect' }
 if ($License) { $arguments += '--demo-license' }
 if ($Scale) { $arguments += @('--scale', $Scale) }
-$process = Start-Process -FilePath (Join-Path $taskRoot 'build\OpenNex.exe') -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden -RedirectStandardError (Join-Path $imageDir "page-$Page$suffix.log")
+$process = Start-Process -FilePath (Join-Path $taskRoot 'build\OpenLnku.exe') -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden -RedirectStandardError (Join-Path $imageDir "page-$Page$suffix.log")
 if ($process.ExitCode -ne 0) { throw "Preview failed: $($process.ExitCode)" }
 Write-Output $output

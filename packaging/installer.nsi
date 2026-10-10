@@ -14,13 +14,13 @@ Unicode True
 ${StrStr}
 ${UnStrStr}
 !ifndef APP_ID
-  !define APP_ID "OpenNex"
+  !define APP_ID "OpenLnku"
 !endif
 !ifndef LEGACY_ID
-  !define LEGACY_ID "JluConnect"
+  !define LEGACY_ID "OpenNex"
 !endif
 !ifndef APP_TITLE
-  !define APP_TITLE "OpenNex"
+  !define APP_TITLE "OpenLnku"
 !endif
 !ifndef APP_VERSION
   !error "APP_VERSION is required"
@@ -38,10 +38,12 @@ ${UnStrStr}
 !define SETTINGS_KEY "Software\${APP_ID}\${APP_ID}"
 !ifdef ISOLATED_ACCEPTANCE
   !define SHORTCUT_DIR "$INSTDIR\..\shortcuts"
+  !define LEGACY_SHORTCUT_DIR "$INSTDIR\..\legacy-shortcuts"
   !define AUTORUN_ARGS '--demo --tray --test-identity ${APP_ID} --settings-file $\"$INSTDIR\..\demo.ini$\"'
   !define LAUNCH_ARGS '--demo --test-identity ${APP_ID} --settings-file $\"$INSTDIR\..\demo.ini$\"'
 !else
   !define SHORTCUT_DIR "$SMPROGRAMS\${APP_ID}"
+  !define LEGACY_SHORTCUT_DIR "$SMPROGRAMS\${LEGACY_ID}"
   !define AUTORUN_ARGS '--tray'
   !define LAUNCH_ARGS ''
 !endif
@@ -57,7 +59,7 @@ VIAddVersionKey "ProductName" "${APP_TITLE}"
 VIAddVersionKey "FileDescription" "${APP_TITLE} Setup"
 VIAddVersionKey "FileVersion" "${APP_VERSION}"
 VIAddVersionKey "ProductVersion" "${APP_VERSION}"
-VIAddVersionKey "LegalCopyright" "OpenNex"
+VIAddVersionKey "LegalCopyright" "OpenLnku"
 !define MUI_ABORTWARNING
 !define MUI_ICON "..\assets\branding\app.ico"
 !define MUI_UNICON "..\assets\branding\app.ico"
@@ -65,7 +67,7 @@ VIAddVersionKey "LegalCopyright" "OpenNex"
 !insertmacro MUI_PAGE_LICENSE "..\LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
-!define MUI_FINISHPAGE_RUN "$INSTDIR\OpenNex.exe"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\OpenLnku.exe"
 !define MUI_FINISHPAGE_RUN_PARAMETERS "${LAUNCH_ARGS}"
 !define MUI_FINISHPAGE_RUN_FUNCTION LaunchApplication
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
@@ -88,7 +90,7 @@ Var InstallMutex
     ClearErrors
     ReadRegStr ${VALUE} HKCU "${KEY}" "${NAME}"
     ${If} ${Errors}
-      StrCpy ${VALUE} "OpenNexMissingBoolean"
+      StrCpy ${VALUE} "OpenLnkuMissingBoolean"
     ${EndIf}
   ${EndIf}
   ; LogicLib's Errors condition consumes the flag. Return validity only after parsing.
@@ -105,6 +107,11 @@ Var InstallMutex
 
 !macro RequireStopped
   runningCheck:
+    System::Call 'kernel32::OpenMutexW(i 0x100000, i 0, w "Local\${LEGACY_ID}.App.Live") p.r0'
+    ${If} $0 != 0
+      System::Call 'kernel32::CloseHandle(p r0)'
+      Goto appBusy
+    ${EndIf}
     System::Call 'kernel32::OpenMutexW(i 0x100000, i 0, w "Local\${APP_ID}.App.Live") p.r0'
     ${If} $0 != 0
       System::Call 'kernel32::CloseHandle(p r0)'
@@ -116,11 +123,11 @@ Var InstallMutex
       Goto appBusy
     ${EndIf}
     !ifndef ISOLATED_ACCEPTANCE
-      FindWindow $0 "" "OpenNex"
+      FindWindow $0 "" "OpenLnku"
       ${If} $0 != 0
         Goto appBusy
       ${EndIf}
-      FindWindow $0 "" "OpenNex · 离线演示"
+      FindWindow $0 "" "OpenLnku · 离线演示"
       ${If} $0 != 0
         Goto appBusy
       ${EndIf}
@@ -149,6 +156,10 @@ Function .onInit
   SetRegView 64
   ReadRegStr $InstalledLocation HKCU "${UNINSTALL_KEY}" "InstallLocation"
   ReadRegStr $InstalledVersion HKCU "${UNINSTALL_KEY}" "DisplayVersion"
+  ${If} $InstalledLocation == ""
+    ReadRegStr $InstalledLocation HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${LEGACY_ID}" "InstallLocation"
+    ReadRegStr $InstalledVersion HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${LEGACY_ID}" "DisplayVersion"
+  ${EndIf}
   ${If} $InstalledLocation != ""
     StrCpy $INSTDIR $InstalledLocation
   ${EndIf}
@@ -169,7 +180,7 @@ FunctionEnd
 Function LaunchApplication
   System::Call 'kernel32::CloseHandle(p $InstallMutex)'
   StrCpy $InstallMutex 0
-  Exec '"$INSTDIR\OpenNex.exe" ${LAUNCH_ARGS}'
+  Exec '"$INSTDIR\OpenLnku.exe" ${LAUNCH_ARGS}'
 FunctionEnd
 
 Function .onVerifyInstDir
@@ -194,12 +205,13 @@ Function .onVerifyInstDir
     FindClose $0
     Return
   legacyDirectory:
-    IfFileExists "$INSTDIR\OpenNex.exe" directoryValid badDirectory
+    IfFileExists "$INSTDIR\OpenLnku.exe" directoryValid badDirectory
   ownedDirectory:
     FileOpen $0 "$INSTDIR\.opennex-installed" r
     FileRead $0 $1
     FileClose $0
-    StrCmp $1 "${APP_ID}" directoryValid badDirectory
+    StrCmp $1 "${APP_ID}" directoryValid
+    StrCmp $1 "${LEGACY_ID}" directoryValid badDirectory
   badDirectory:
     SetErrorLevel 19
     IfSilent +2
@@ -359,7 +371,7 @@ Function CleanupObsolete
   cleanupDone:
 FunctionEnd
 
-Section "OpenNex"
+Section "OpenLnku"
   Call .onVerifyInstDir
   !insertmacro RequireStopped
   SetOutPath "$INSTDIR"
@@ -379,7 +391,7 @@ Section "OpenNex"
   SetShellVarContext current
   ClearErrors
   CreateDirectory "${SHORTCUT_DIR}"
-  CreateShortcut "${SHORTCUT_DIR}\OpenNex.lnk" "$INSTDIR\OpenNex.exe" "${LAUNCH_ARGS}"
+  CreateShortcut "${SHORTCUT_DIR}\OpenLnku.lnk" "$INSTDIR\OpenLnku.exe" "${LAUNCH_ARGS}"
   CreateShortcut "${SHORTCUT_DIR}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
   IfErrors installFailed
   !ifndef ISOLATED_FILES_ONLY
@@ -388,7 +400,7 @@ Section "OpenNex"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
   WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" '$\"$INSTDIR\Uninstall.exe$\" /S'
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\OpenNex.exe"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\OpenLnku.exe"
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
   IfErrors installFailed
@@ -423,14 +435,16 @@ Section "OpenNex"
       StrCpy $0 $1
     ${ElseIf} $InstalledLocation != ""
       ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
+      ReadRegStr $2 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${LEGACY_ID}"
       ${If} $1 == ""
+      ${AndIf} $2 == ""
         StrCpy $0 0
       ${EndIf}
     ${Else}
         EnumRegValue $1 HKCU "Software\${LEGACY_ID}\${LEGACY_ID}" 0
         ${If} $1 != ""
           ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${LEGACY_ID}"
-          ReadRegStr $2 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "OpenNex"
+          ReadRegStr $2 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
           ${If} $1 == ""
           ${AndIf} $2 == ""
             StrCpy $0 0
@@ -443,14 +457,14 @@ Section "OpenNex"
   ${EndIf}
   ${If} $0 == 1
     ClearErrors
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}" '$\"$INSTDIR\OpenNex.exe$\" ${AUTORUN_ARGS}'
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}" '$\"$INSTDIR\OpenLnku.exe$\" ${AUTORUN_ARGS}'
     IfErrors installFailed
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${LEGACY_ID}"
   ${Else}
     ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
-    StrLen $2 '$\"$INSTDIR\OpenNex.exe$\"'
+    StrLen $2 '$\"$INSTDIR\OpenLnku.exe$\"'
     StrCpy $1 $1 $2
-    ${If} $1 == '$\"$INSTDIR\OpenNex.exe$\"'
+    ${If} $1 == '$\"$INSTDIR\OpenLnku.exe$\"'
       ClearErrors
       DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
       IfErrors installFailed
@@ -463,8 +477,26 @@ Section "OpenNex"
     ${EndIf}
   ${EndIf}
   ClearErrors
+  ; Respect an explicit disabled new preference even when the old boolean was absent.
+  ; Remove only a legacy command pointing to the managed executable in this directory.
+  ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${LEGACY_ID}"
+  StrLen $2 '$\"$INSTDIR\OpenNex.exe$\"'
+  StrCpy $1 $1 $2
+  ${If} $1 == '$\"$INSTDIR\OpenNex.exe$\"'
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${LEGACY_ID}"
+  ${EndIf}
+  ClearErrors
   WriteRegDWORD HKCU "${SETTINGS_KEY}" "startupConfigured" 1
   IfErrors installFailed
+  WriteRegDWORD HKCU "${SETTINGS_KEY}" "brandStartupMigrated" 1
+  IfErrors installFailed
+  ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${LEGACY_ID}" "InstallLocation"
+  ${If} $1 == $INSTDIR
+    DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${LEGACY_ID}"
+    Delete "${LEGACY_SHORTCUT_DIR}\${LEGACY_ID}.lnk"
+    Delete "${LEGACY_SHORTCUT_DIR}\Uninstall.lnk"
+    RMDir "${LEGACY_SHORTCUT_DIR}"
+  ${EndIf}
   !endif
   SetErrorLevel 0
   Goto installDone
@@ -537,9 +569,9 @@ Section "Uninstall"
     FileClose $R3
     !ifndef ISOLATED_FILES_ONLY
     ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
-    StrLen $1 '$\"$INSTDIR\OpenNex.exe$\"'
+    StrLen $1 '$\"$INSTDIR\OpenLnku.exe$\"'
     StrCpy $2 $0 $1
-    ${If} $2 == '$\"$INSTDIR\OpenNex.exe$\"'
+    ${If} $2 == '$\"$INSTDIR\OpenLnku.exe$\"'
       ClearErrors
       DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
       IfErrors unFailure
@@ -559,7 +591,7 @@ Section "Uninstall"
       IfErrors unFailure
     ${EndIf}
     !endif
-    Delete "${SHORTCUT_DIR}\OpenNex.lnk"
+    Delete "${SHORTCUT_DIR}\OpenLnku.lnk"
     Delete "${SHORTCUT_DIR}\Uninstall.lnk"
     RMDir "${SHORTCUT_DIR}"
     Delete "$INSTDIR\.opennex-files.txt"

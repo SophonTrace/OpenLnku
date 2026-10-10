@@ -1,6 +1,6 @@
-# Embedded in OpenNex; launched with an encoded job, never fetched from a release.
+# Embedded in OpenLnku; launched with an encoded job, never fetched from a release.
 $ErrorActionPreference = 'Stop'
-$job = $OpenNexJobJson | ConvertFrom-Json
+$job = $OpenLnkuJobJson | ConvertFrom-Json
 $app = [IO.Path]::GetFullPath($job.appRoot).TrimEnd('\','/')
 $cache = [IO.Path]::GetFullPath($job.jobRoot).TrimEnd('\','/')
 $stage = Join-Path $cache 'stage'
@@ -30,7 +30,7 @@ function Hash([string]$path) { return (Get-FileHash -LiteralPath $path -Algorith
 function AtomicCopy([string]$source,[string]$target) {
     AssertPlainPath $source; AssertPlainPath $target
     [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target)) | Out-Null
-    $temporary = $target + '.opennex-new-' + [guid]::NewGuid().ToString('N')
+    $temporary = $target + '.openlnku-new-' + [guid]::NewGuid().ToString('N')
     $previous = $temporary + '.previous'
     try {
         [IO.File]::Copy($source,$temporary,$false)
@@ -55,23 +55,23 @@ function Rollback {
 }
 try {
     AssertPlainPath $app; AssertPlainPath $cache
-    if (-not [IO.File]::Exists((Join-Path $app 'OpenNex.exe')) -or -not [IO.Directory]::Exists($cache)) { throw 'Update target missing.' }
+    if (-not [IO.File]::Exists((Join-Path $app 'OpenLnku.exe')) -or -not [IO.Directory]::Exists($cache)) { throw 'Update target missing.' }
     $testOnly = $job.testOnly -eq $true -and (Test-Path -LiteralPath (Join-Path $app '.update-acceptance-owned'))
     if (-not $testOnly) {
-        $allowed = Join-Path $env:LOCALAPPDATA 'OpenNex\OpenNex\Updates'
+        $allowed = Join-Path $env:LOCALAPPDATA 'OpenLnku\OpenLnku\Updates'
         if (-not $cache.StartsWith([IO.Path]::GetFullPath($allowed).TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Update cache is outside the application cache.' }
         $parentProcess = [Diagnostics.Process]::GetProcessById([int]$job.parentId)
-        if (-not $parentProcess.MainModule.FileName.Equals((Join-Path $app 'OpenNex.exe'),[StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected parent process.' }
+        if (-not $parentProcess.MainModule.FileName.Equals((Join-Path $app 'OpenLnku.exe'),[StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected parent process.' }
     }
     if ($job.version -notmatch '^\d+\.\d+\.\d+$' -or [IO.Path]::GetFullPath($job.archive) -ne (Join-Path $cache 'package.zip')) { throw 'Invalid update job.' }
     $created = $false
-    $mutex = [Threading.Mutex]::new($false, $(if($testOnly){'Local\OpenNexAcceptanceUpdate.Installer'}else{'Local\OpenNex.Installer'}), [ref]$created)
+    $mutex = [Threading.Mutex]::new($false, $(if($testOnly){'Local\OpenLnkuAcceptanceUpdate.Installer'}else{'Local\OpenLnku.Installer'}), [ref]$created)
     if (-not $created) { throw 'Another installer is running.' }
     if ($parentProcess -and -not $parentProcess.WaitForExit(30000)) { throw 'Client did not exit; update cancelled.' }
     $restart = -not $testOnly
     foreach ($kind in @('Live','Demo')) {
         $active = $null
-        if (-not $testOnly -and [Threading.Mutex]::TryOpenExisting("Local\OpenNex.App.$kind",[ref]$active)) { $active.Dispose(); throw 'Client is still running.' }
+        if (-not $testOnly -and [Threading.Mutex]::TryOpenExisting("Local\OpenLnku.App.$kind",[ref]$active)) { $active.Dispose(); throw 'Client is still running.' }
     }
     if (Test-Path -LiteralPath $journalPath) {
         $journal = [IO.File]::ReadAllText($journalPath,[Text.Encoding]::UTF8) | ConvertFrom-Json
@@ -91,7 +91,7 @@ try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [IO.Compression.ZipFile]::OpenRead($job.archive)
     try {
-        $prefix = "OpenNex-$($job.version)-windows-x64/"
+        $prefix = "OpenLnku-$($job.version)-windows-x64/"
         $entries = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
         [long]$expanded = 0
         foreach ($entry in $archive.Entries) {
@@ -124,10 +124,10 @@ try {
         if (-not $entries.Contains($name) -or (Get-Item -LiteralPath $path).Length -ne [long]$record.bytes -or (Hash $path) -ne $record.sha256) { throw 'Extracted package integrity mismatch.' }
     }
     $newFiles.Add('payload-manifest.json') | Out-Null
-    if ($entries.Count -ne $newFiles.Count -or -not $newFiles.Contains('OpenNex.exe') -or (Get-Item -LiteralPath (Join-Path $stage 'OpenNex.exe')).VersionInfo.ProductVersion -ne $job.version) { throw 'Unexpected package content.' }
+    if ($entries.Count -ne $newFiles.Count -or -not $newFiles.Contains('OpenLnku.exe') -or (Get-Item -LiteralPath (Join-Path $stage 'OpenLnku.exe')).VersionInfo.ProductVersion -ne $job.version) { throw 'Unexpected package content.' }
     $installed = Test-Path -LiteralPath (Join-Path $app '.opennex-installed')
     if ($installed) {
-        if ((Get-Content -LiteralPath (Join-Path $app '.opennex-installed') -Raw) -ne 'OpenNex') { throw 'Foreign installation marker.' }
+        if ((Get-Content -LiteralPath (Join-Path $app '.opennex-installed') -Raw) -ne 'OpenLnku') { throw 'Foreign installation marker.' }
         foreach ($name in [IO.File]::ReadAllLines((Join-Path $app '.opennex-files.txt'))) { if ($name -and -not $name.EndsWith('\')) { $oldFiles.Add((Relative $name.Replace('\','/'))) | Out-Null } }
     } else {
         $old = [IO.File]::ReadAllText((Join-Path $app 'payload-manifest.json'),[Text.Encoding]::UTF8) | ConvertFrom-Json
@@ -148,14 +148,14 @@ try {
         [IO.File]::Copy((Join-Path $app '.opennex-files.txt'),(Join-Path $backup '.opennex-files.txt'),$false)
     }
     # A workspace can inherit a Low label. Normalize the new executable, restoring its DACL.
-    $exe = Join-Path $stage 'OpenNex.exe'; $acl = Get-Acl -LiteralPath $exe; $access = [Security.AccessControl.AccessControlSections]::Access
+    $exe = Join-Path $stage 'OpenLnku.exe'; $acl = Get-Acl -LiteralPath $exe; $access = [Security.AccessControl.AccessControlSections]::Access
     $saved = $acl.GetSecurityDescriptorSddlForm($access); $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
     if ($acl.GetOwner([Security.Principal.SecurityIdentifier]) -ne $sid) { throw 'Staged file owner mismatch.' }
     try { $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($sid,'TakeOwnership','Allow'))); Set-Acl -LiteralPath $exe -AclObject $acl; & "$env:WINDIR\System32\icacls.exe" $exe /setintegritylevel M | Out-Null; if ($LASTEXITCODE) { throw 'Unable to restore normal executable integrity.' } }
     finally { $restore=Get-Acl -LiteralPath $exe; $restore.SetSecurityDescriptorSddlForm($saved,$access); Set-Acl -LiteralPath $exe -AclObject $restore }
     $all = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
     foreach ($name in $oldFiles) { $all.Add($name) | Out-Null }; foreach ($name in $newFiles) { $all.Add($name) | Out-Null }
-    foreach ($name in @($all | Sort-Object @{Expression={if ($_ -eq 'OpenNex.exe') {1} else {0}}}, @{Expression={$_}})) {
+    foreach ($name in @($all | Sort-Object @{Expression={if ($_ -eq 'OpenLnku.exe') {1} else {0}}}, @{Expression={$_}})) {
         if ($name -eq '.opennex-files.txt') { continue }
         $changed.Add($name); PersistJournal
         $target = Join-Path $app $name
@@ -166,13 +166,13 @@ try {
         if ($testOnly -and $job.failAfter -and $changed.Count -eq [int]$job.failAfter) { throw 'Injected acceptance failure.' }
     }
     # CopyFile retains an existing destination label; repeat executable normalization on the destination.
-    $exe = Join-Path $app 'OpenNex.exe'; $acl = Get-Acl -LiteralPath $exe; $saved = $acl.GetSecurityDescriptorSddlForm($access)
+    $exe = Join-Path $app 'OpenLnku.exe'; $acl = Get-Acl -LiteralPath $exe; $saved = $acl.GetSecurityDescriptorSddlForm($access)
     try { $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($sid,'TakeOwnership','Allow'))); Set-Acl -LiteralPath $exe -AclObject $acl; & "$env:WINDIR\System32\icacls.exe" $exe /setintegritylevel M | Out-Null; if ($LASTEXITCODE) { throw 'Unable to restore destination integrity.' } }
     finally { $restore=Get-Acl -LiteralPath $exe; $restore.SetSecurityDescriptorSddlForm($saved,$access); Set-Acl -LiteralPath $exe -AclObject $restore }
     if ($installed) {
         $changed.Add('.opennex-files.txt'); PersistJournal
         [IO.File]::WriteAllLines((Join-Path $app '.opennex-files.txt'),[string[]]@($newFiles | Sort-Object | ForEach-Object {$_.Replace('/','\')}),[Text.UTF8Encoding]::new($false))
-        $registry = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\OpenNex'
+        $registry = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\OpenLnku'
         if (-not $testOnly -and (Test-Path -LiteralPath $registry) -and (Get-ItemPropertyValue -LiteralPath $registry -Name InstallLocation) -eq $app) { Set-ItemProperty -LiteralPath $registry -Name DisplayVersion -Value $job.version }
     }
     $status='success'; $message='更新完成'; [IO.File]::WriteAllText($journalPath,'{"state":"complete"}')
@@ -183,6 +183,6 @@ try {
 } finally {
     if ($mutex) { $mutex.Dispose() }
     try { [IO.File]::WriteAllText((Join-Path $cache 'result.json'),(@{status=$status;message=$message;version=$job.version}|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false)) } catch {}
-    if ($restart) { Start-Process -FilePath (Join-Path $app 'OpenNex.exe') -WorkingDirectory $app -WindowStyle Hidden }
+    if ($restart) { Start-Process -FilePath (Join-Path $app 'OpenLnku.exe') -WorkingDirectory $app -WindowStyle Hidden }
 }
 if ($status -ne 'success') { exit 1 }
