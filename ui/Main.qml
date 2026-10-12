@@ -394,7 +394,7 @@ ApplicationWindow {
                             ProgressBar { visible: updates.busy && updates.progress > 0; Layout.fillWidth: true; value: updates.progress; implicitHeight: 5 }
                             AppText { visible: updates.available; text: t(updates.notes); textFormat: Text.PlainText; maximumLineCount: 3; elide: Text.ElideRight; wrapMode: Text.WordWrap; Layout.fillWidth: true; color: window.muted; font.pixelSize: 11 }
                             RowLayout {
-                                ActionButton { text: updates.recoveryAvailable ? t("恢复上次更新") : updates.busy ? t("取消") : t("检查更新"); primary: false; enabled: !speed.running; onClicked: updates.recoveryAvailable ? updates.recover() : updates.busy ? updates.cancel() : updates.check() }
+                                ActionButton { text: updates.recoveryAvailable ? t("恢复上次更新") : updates.busy ? t("取消") : t("检查更新"); primary: false; enabled: !updates.installing && !speed.running && (!updates.recoveryAvailable || !updates.busy); onClicked: updates.recoveryAvailable ? updates.recover() : updates.busy ? updates.cancel() : updates.check() }
                                 ActionButton { visible: updates.available; enabled: !updates.busy && !speed.running; text: updates.ready ? t("重启并更新") : t("下载更新"); onClicked: updates.ready ? updates.install() : updates.download() }
                                 Item { Layout.fillWidth: true }
                             }

@@ -29,19 +29,33 @@ bool releaseAsset(const QString& url) {
 }
 }
 Updater::Updater(bool demo, QObject* parent) : QObject(parent), demo_(demo) {
+    connect(&handoff_, &UpdateHandoff::ready, this, [this] {
+        ready_ = false; status_ = QStringLiteral("正在退出并更新");
+        emit changed(); emit installationStarted();
+    });
+    connect(&handoff_, &UpdateHandoff::failed, this, [this](const QString& message) {
+        installing_ = false; status_ = message; emit changed();
+    });
     if (!demo_) {
         const QDir cache(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/Updates");
         for (const auto& directory : cache.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time)) {
             if (directory.isSymLink() || !QRegularExpression("^[0-9a-f-]{36}$").match(directory.fileName()).hasMatch()) continue;
             QFile journal(directory.filePath() + "/journal.json");
-            if (!journal.open(QIODevice::ReadOnly) || journal.size() > 1048576) continue;
-            const auto state = QJsonDocument::fromJson(journal.readAll()).object();
+            QJsonObject state;
+            if (journal.open(QIODevice::ReadOnly) && journal.size() <= 1048576) state = QJsonDocument::fromJson(journal.readAll()).object();
             if (state.value("state") == "applying" && QDir(state.value("app").toString()).absolutePath() == QCoreApplication::applicationDirPath()) {
                 recovery_ = true; jobDir_ = directory.filePath(); status_ = QStringLiteral("上次更新中断，请先恢复旧版"); break;
             }
             QFile result(directory.filePath() + "/result.json");
-            if (status_ == QStringLiteral("尚未检查") && result.open(QIODevice::ReadOnly) && result.size() < 65536)
-                status_ = QJsonDocument::fromJson(result.readAll()).object().value("message").toString().left(500);
+            if (status_ == QStringLiteral("尚未检查") && result.open(QIODevice::ReadOnly) && result.size() < 65536) {
+                const auto outcome = QJsonDocument::fromJson(result.readAll()).object();
+                QFile savedJob(directory.filePath() + "/job.json");
+                QJsonObject job;
+                if (savedJob.open(QIODevice::ReadOnly) && savedJob.size() < 65536) job = QJsonDocument::fromJson(savedJob.readAll()).object();
+                const QString appRoot = outcome.value("app").toString(job.value("appRoot").toString());
+                if (!appRoot.isEmpty() && QDir(appRoot).absolutePath() == QCoreApplication::applicationDirPath())
+                    status_ = outcome.value("message").toString().left(500);
+            }
         }
     }
     if (!demo_) QTimer::singleShot(15000, this, [this] {
@@ -106,6 +120,7 @@ void Updater::check() {
     });
 }
 void Updater::cancel() {
+    if (installing_) return;
     ++generation_;
     if (reply_) { auto* old = reply_.data(); reply_ = nullptr; old->disconnect(this); old->abort(); old->deleteLater(); }
     download_.reset(); ready_ = false; status_ = QStringLiteral("已取消"); emit changed();
@@ -160,23 +175,6 @@ void Updater::recover() {
 void Updater::launchHelper(QJsonObject job) {
     QFile helper(":/updates/tools/apply-update.ps1");
     if (!helper.open(QIODevice::ReadOnly)) { fail(QStringLiteral("更新助手不可用")); return; }
-    const auto json = QJsonDocument(job).toJson(QJsonDocument::Compact).toBase64();
-    const auto helperBytes = helper.readAll();
-    const QString helperPath = jobDir_ + "/apply-" + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".ps1";
-    QFile savedHelper(helperPath);
-    if (!savedHelper.open(QIODevice::WriteOnly | QIODevice::NewOnly) || savedHelper.write(helperBytes) != helperBytes.size() || !savedHelper.flush()) { fail(QStringLiteral("无法准备更新助手")); return; }
-    savedHelper.close();
-    const auto path = helperPath.toUtf8().toBase64();
-    const auto helperHash = QCryptographicHash::hash(helperBytes, QCryptographicHash::Sha256).toHex();
-    const QString script = "$OpenLnkuJobJson = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + QString::fromLatin1(json) + "'))\n"
-        "$OpenLnkuHelperPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + QString::fromLatin1(path) + "'))\n"
-        "if ((Get-FileHash -LiteralPath $OpenLnkuHelperPath -Algorithm SHA256).Hash -ne '" + QString::fromLatin1(helperHash) + "') { throw 'Update helper integrity mismatch' }\n"
-        "& ([ScriptBlock]::Create([IO.File]::ReadAllText($OpenLnkuHelperPath, [Text.Encoding]::UTF8)))";
-    const auto encoded = QByteArray(reinterpret_cast<const char*>(script.utf16()), script.size() * 2).toBase64();
-    const QString shell = qEnvironmentVariable("WINDIR") + "/System32/WindowsPowerShell/v1.0/powershell.exe";
-    if (!QProcess::startDetached(shell, {"-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", QString::fromLatin1(encoded)}, jobDir_)) {
-        fail(QStringLiteral("无法启动更新助手")); return;
-    }
-    ready_ = false;
-    status_ = QStringLiteral("正在退出并更新"); emit changed(); emit installationStarted();
+    installing_ = true; status_ = QStringLiteral("正在准备更新助手"); emit changed();
+    handoff_.start(std::move(job), helper.readAll());
 }

@@ -69,6 +69,7 @@ Exit lookups and DNS checks use Cloudflare / IPLeak services, which can observe 
 
 - Saved passwords use Windows data protection for the current user. Uncheck Remember password or clear the account in Settings to remove stored credentials.
 - Check for updates in Settings, then follow the download and restart prompts. Exit the old tray client before a manual upgrade. Account details and preferences are retained.
+- If version 1.2.0 or 1.2.2 exits without restarting during an update, manually install version 1.2.3 or later once. For the portable edition, fully extract the new ZIP into a new directory before opening it.
 - Existing OpenNex account details and settings migrate automatically.
 - Uninstalling keeps account details and preferences by default, with an option to remove them.
 - The application and installer currently have no Windows code-signing certificate.

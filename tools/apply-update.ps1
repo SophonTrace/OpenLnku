@@ -14,6 +14,14 @@ $restart = $false
 $status = 'failed'
 $message = ''
 $rollbackFailed = $false
+$launchToken = [string]$job.launchToken
+$cancelPath = $null
+function Cancelled { return $cancelPath -and [IO.File]::Exists($cancelPath) }
+function WriteOutcome {
+    $data = @{status=$status;message=$message;version=$job.version;app=$app;launchToken=$launchToken} | ConvertTo-Json -Compress
+    [IO.File]::WriteAllText((Join-Path $cache 'result.json'),$data,[Text.UTF8Encoding]::new($false))
+    if ($launchToken) { [IO.File]::WriteAllText((Join-Path $cache "result-$launchToken.json"),$data,[Text.UTF8Encoding]::new($false)) }
+}
 function AssertPlainPath([string]$path) {
     $node = $path
     while ($node) {
@@ -57,21 +65,42 @@ try {
     AssertPlainPath $app; AssertPlainPath $cache
     if (-not [IO.File]::Exists((Join-Path $app 'OpenLnku.exe')) -or -not [IO.Directory]::Exists($cache)) { throw 'Update target missing.' }
     $testOnly = $job.testOnly -eq $true -and (Test-Path -LiteralPath (Join-Path $app '.update-acceptance-owned'))
-    if (-not $testOnly) {
+    if ($launchToken) {
+        if ($launchToken -notmatch '^[0-9a-f-]{36}$') { throw 'Invalid update launch token.' }
+        $cancelPath = Join-Path $cache "cancel-$launchToken"
+    } elseif (-not $testOnly) { throw 'Missing update launch acknowledgement.' }
+    if (-not $testOnly -or [int]$job.parentId -gt 0) {
         $allowed = Join-Path $env:LOCALAPPDATA 'OpenLnku\OpenLnku\Updates'
         if (-not $cache.StartsWith([IO.Path]::GetFullPath($allowed).TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Update cache is outside the application cache.' }
         $parentProcess = [Diagnostics.Process]::GetProcessById([int]$job.parentId)
+        # Retain a real process handle before acknowledging; PID lookup alone
+        # does not retain the process whose executable we just checked.
+        $null = $parentProcess.Handle
         if (-not $parentProcess.MainModule.FileName.Equals((Join-Path $app 'OpenLnku.exe'),[StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected parent process.' }
     }
     if ($job.version -notmatch '^\d+\.\d+\.\d+$' -or [IO.Path]::GetFullPath($job.archive) -ne (Join-Path $cache 'package.zip')) { throw 'Invalid update job.' }
     $created = $false
     $mutex = [Threading.Mutex]::new($false, $(if($testOnly){'Local\OpenLnkuAcceptanceUpdate.Installer'}else{'Local\OpenLnku.Installer'}), [ref]$created)
     if (-not $created) { throw 'Another installer is running.' }
-    if ($parentProcess -and -not $parentProcess.WaitForExit(30000)) { throw 'Client did not exit; update cancelled.' }
-    $restart = -not $testOnly
+    if (Cancelled) { throw 'Update launch cancelled.' }
+    if ($launchToken) {
+        $readyPath = Join-Path $cache "ready-$launchToken.json"
+        [IO.File]::WriteAllText($readyPath + '.new',(@{status='ready';launchToken=$launchToken}|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+        [IO.File]::Move($readyPath + '.new',$readyPath)
+    }
+    if ($parentProcess) {
+        $exitDeadline = [DateTime]::UtcNow.AddSeconds(30)
+        while (-not $parentProcess.WaitForExit(100)) {
+            if (Cancelled) { throw 'Update launch cancelled.' }
+            if ([DateTime]::UtcNow -ge $exitDeadline) { throw 'Client did not exit; update cancelled.' }
+        }
+    }
+    if (Cancelled) { throw 'Update launch cancelled.' }
+    $restart = -not $testOnly -or ($parentProcess -and $job.testRestart -eq $true)
     foreach ($kind in @('Live','Demo')) {
         $active = $null
-        if (-not $testOnly -and [Threading.Mutex]::TryOpenExisting("Local\OpenLnku.App.$kind",[ref]$active)) { $active.Dispose(); throw 'Client is still running.' }
+        $identity = if ($testOnly) { 'OpenLnkuAcceptanceUpdate' } else { 'OpenLnku' }
+        if ((-not $testOnly -or $parentProcess) -and [Threading.Mutex]::TryOpenExisting("Local\$identity.App.$kind",[ref]$active)) { $active.Dispose(); throw 'Client is still running.' }
     }
     if (Test-Path -LiteralPath $journalPath) {
         $journal = [IO.File]::ReadAllText($journalPath,[Text.Encoding]::UTF8) | ConvertFrom-Json
@@ -179,10 +208,15 @@ try {
 } catch {
     $message=$_.Exception.Message
     if ($changed.Count) { try { Rollback; $changed.Clear(); [IO.File]::WriteAllText($journalPath,'{"state":"recovered"}'); $message="更新失败，已恢复旧版：$message" } catch { $rollbackFailed=$true; $restart=$false; $message="自动恢复失败，请重新运行安装器。$($_.Exception.Message)" } }
-    if (-not $rollbackFailed -and -not $restart -and $parentProcess -and $parentProcess.HasExited) { $restart=$true }
+    if (-not $rollbackFailed -and -not (Cancelled) -and -not $restart -and $parentProcess -and $parentProcess.HasExited) { $restart=$true }
 } finally {
     if ($mutex) { $mutex.Dispose() }
-    try { [IO.File]::WriteAllText((Join-Path $cache 'result.json'),(@{status=$status;message=$message;version=$job.version}|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false)) } catch {}
-    if ($restart) { Start-Process -FilePath (Join-Path $app 'OpenLnku.exe') -WorkingDirectory $app -WindowStyle Hidden }
+    try { WriteOutcome } catch {}
+    if ($restart) {
+        # Hidden applies only to the PowerShell helper, never to the restarted GUI.
+        try { Start-Process -FilePath (Join-Path $app 'OpenLnku.exe') -WorkingDirectory $app -ErrorAction Stop | Out-Null }
+        catch { $status='restart-failed'; $message="更新处理已结束，但自动启动失败，请手动打开 OpenLnku。$($_.Exception.Message)"; try { WriteOutcome } catch {} }
+    }
+    if ($parentProcess) { $parentProcess.Dispose() }
 }
 if ($status -ne 'success') { exit 1 }

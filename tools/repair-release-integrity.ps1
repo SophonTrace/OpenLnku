@@ -21,7 +21,7 @@ $relativeTargets = if ($BrandAcceptanceRoot) { @([IO.Path]::GetRelativePath($tas
 elseif ($AcceptanceDirectories) { @('.deps\release-acceptance', '.deps\release-acceptance\nsis-temp') }
 elseif ($ToolchainOnly) { @('.deps\NSIS\nsis-3.13\Bin\makensis.exe') }
 elseif ($FixtureOnly) { @('build\settings_fixture.exe') }
-elseif ($BuildOnly) { @('build\OpenLnku.exe', 'build\settings_fixture.exe', 'build\speed_probe.exe', 'build\network_probe.exe', 'build\network_info_tests.exe', 'build\speed_tests.exe', 'build\localization_tests.exe') }
+elseif ($BuildOnly) { @('build\OpenLnku.exe', 'build\settings_fixture.exe', 'build\speed_probe.exe', 'build\network_probe.exe', 'build\network_info_tests.exe', 'build\speed_tests.exe', 'build\localization_tests.exe', 'build\update_handoff_tests.exe', 'build\update_handoff_fixture.exe', 'build\update_handoff_old_fixture.exe') }
 elseif ($ReleaseOnly) { @('build\OpenLnku.exe', 'build\settings_fixture.exe', "dist\$packageName\OpenLnku.exe", "dist\OpenLnku-$version-setup-x64.exe") }
 else { @(
     'build\OpenLnku.exe', 'build\settings_fixture.exe',
