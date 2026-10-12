@@ -11,7 +11,7 @@ inline StartupMode startupMode(const QStringList& arguments) {
     const bool demo = has("--demo");
     if ((demo && has("--live")) ||
         (!demo && (has("--capture") || has("--demo-connect") || has("--settings-file") || has("--test-identity") ||
-                   has("--scale") || has("--quit-after") || has("--verify-tray") || has("--verify-ui") || has("--demo-license") || has("--verify-tray-failure") || has("--verify-language"))))
+                   has("--network-details") || has("--speed-options") || has("--scale") || has("--quit-after") || has("--verify-tray") || has("--verify-ui") || has("--demo-license") || has("--verify-tray-failure") || has("--verify-language"))))
         return StartupMode::Invalid;
     return demo ? StartupMode::Demo : StartupMode::Live;
 }

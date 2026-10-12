@@ -36,6 +36,9 @@ int main(int argc, char* argv[]) {
                       QStringLiteral("Optional label for the selected interface."), QStringLiteral("name")});
     parser.addOption({QStringLiteral("node"), QStringLiteral("Node: auto, domestic or overseas."), QStringLiteral("node"), QStringLiteral("auto")});
     parser.addOption({QStringLiteral("complete"), QStringLiteral("Explicitly allow the full bounded bandwidth measurement instead of cancelling after IP.")});
+    parser.addOption({QStringLiteral("cancel-after-ms"), QStringLiteral("With --complete, cancel this many milliseconds into download."), QStringLiteral("milliseconds")});
+    parser.addOption({"protocol","auto, 4 or 6","protocol","auto"});
+    parser.addOption({"extended","Use extended measurement"});
     parser.process(application);
 
     if (!parser.isSet(QStringLiteral("network-probe"))) {
@@ -72,7 +75,14 @@ int main(int argc, char* argv[]) {
     const auto nodeName = parser.value(QStringLiteral("node"));
     if (nodeName != "auto" && nodeName != "domestic" && nodeName != "overseas") return 64;
     speed.setNodeChoice(nodeName == "domestic" ? 1 : nodeName == "overseas" ? 2 : 0);
+    const auto protocol=parser.value("protocol");
+    if (protocol!="auto" && protocol!="4" && protocol!="6") return 64;
+    speed.setProtocolChoice(protocol=="4"?1:protocol=="6"?2:0); speed.setExtended(parser.isSet("extended"));
     const bool full = parser.isSet(QStringLiteral("complete"));
+    bool cancelOk = false;
+    const int cancelDelay = parser.value(QStringLiteral("cancel-after-ms")).toInt(&cancelOk);
+    if (parser.isSet(QStringLiteral("cancel-after-ms")) && (!full || !cancelOk || cancelDelay < 1 || cancelDelay > 8000)) return 64;
+    bool cancellationScheduled = false;
     bool started = false;
     bool exitIpFound = false;
     bool watchdogExpired = false;
@@ -96,12 +106,18 @@ int main(int argc, char* argv[]) {
     });
     QObject::connect(&speed, &SpeedTest::changed, &application, [&] {
         if (speed.phase() != lastPhase) { lastPhase = speed.phase(); QTextStream(stdout) << "PHASE=" << lastPhase << "\n"; QTextStream(stdout).flush(); }
+        if (cancelDelay > 0 && !cancellationScheduled && speed.phase() == QStringLiteral("测量下载速度")) {
+            cancellationScheduled = true;
+            QTimer::singleShot(cancelDelay, &speed, [&] {
+                if (speed.phase() == QStringLiteral("测量下载速度")) speed.cancel();
+            });
+        }
         if (!exitIpFound) {
             const QHostAddress address(speed.exitIp());
             if (!address.isNull()) {
                 exitIpFound = true;
                 QTextStream(stdout) << "MODE=" << modeName << "\nEXIT_IP="
-                                    << speed.exitIp() << "\n";
+                                    << (address.protocol()==QAbstractSocket::IPv6Protocol ? "[IPv6 hidden]" : "[IPv4 hidden]") << "\n";
                 QTextStream(stdout).flush();
                 if (!full) speed.cancel();
             }
@@ -125,7 +141,7 @@ int main(int argc, char* argv[]) {
         }
     });
 
-    watchdog.start(80000);
+    watchdog.start(120000);
     started = true;
     speed.start(interfaceIndex, sourceIp, adapterName);
     if (!speed.running()) {

@@ -7,11 +7,11 @@ Canvas {
     onHeightChanged: requestPaint()
     onPaint: {
         const c = getContext("2d"); c.reset()
-        const left = 27, top = 6, bottom = height - 20, right = width - 8, w = right-left, h = bottom-top
+        const left = 34, top = 6, bottom = height - 20, right = width - 8, w = right-left, h = bottom-top
         if (w <= 0 || h <= 0) return
         let peak = 0
         for (const s of samples) peak = Math.max(peak, s.down, s.up)
-        const maximum = Math.max(600, Math.ceil(peak / 600) * 600)
+        const maximum = Math.max(1200, Math.ceil(peak / 600) * 600)
         const duration = Math.max(20, samples.length && samples[samples.length-1].seconds ? Math.ceil(samples[samples.length-1].seconds / 5) * 5 : 20)
         c.font = "9px 'Segoe UI'"; c.fillStyle = "#7483a5"; c.lineWidth = 0.7
         for (let n = 0; n <= 3; n++) {

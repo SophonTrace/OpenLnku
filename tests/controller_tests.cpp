@@ -95,7 +95,7 @@ private slots:
         QVERIFY(startupMode(QStringList{QStringLiteral("--scale=x")}) == StartupMode::Invalid);
         QVERIFY(startupMode(QStringList{QStringLiteral("--quit-after=10")}) == StartupMode::Invalid);
         QVERIFY(startupMode(QStringList{QStringLiteral("--verify-tray")}) == StartupMode::Invalid);
-        for (const auto& option : {QStringLiteral("--verify-ui"),
+        for (const auto& option : {QStringLiteral("--verify-ui"),QStringLiteral("--network-details"),QStringLiteral("--speed-options"),
                                    QStringLiteral("--demo-license"),
                                    QStringLiteral("--verify-tray-failure")}) {
             QVERIFY2(startupMode(QStringList{option}) == StartupMode::Invalid,

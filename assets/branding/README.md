@@ -6,4 +6,6 @@
 
 - `mark.svg` / `tray.svg`：可编辑的矢量源，256 × 256 画布。
 - `app.png`：从矢量源渲染的 256 × 256 应用图标。
-- `app.ico`：包含 256 × 256 PNG 图层的 Windows 应用、快捷方式与安装器图标。
+- `app.ico`：包含 16 / 20 / 24 / 32 / 40 / 48 / 64 / 128 / 256 像素图层的 Windows 应用、快捷方式与安装器图标。
+
+运行 `tools/render-brand.cmd` 可从矢量源重新生成 PNG 和 ICO。

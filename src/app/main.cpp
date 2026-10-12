@@ -1,6 +1,7 @@
 #include "controller.h"
 #include "startup.h"
 #include "speedtest.h"
+#include "network_info.h"
 #include "updater.h"
 #include "proxy_query.h"
 #include "localization.h"
@@ -66,7 +67,7 @@ int main(int argc, char* argv[]) {
     QCommandLineParser parser; parser.setApplicationDescription("OpenLnku"); parser.addHelpOption(); parser.addVersionOption();
     parser.addOptions({{"live", "Network authentication"}, {"demo", "Offline demonstration"}, {"tray", "Start in system tray"},
         {"capture", "Capture offline UI", "file"}, {"demo-connect", "Connect offline simulation"},
-        {"page", "Preview page", "index"}, {"settings-file", "Isolated offline settings", "file"},
+        {"network-details", "Preview offline network details"}, {"speed-options", "Preview offline speed options"}, {"page", "Preview page", "index"}, {"settings-file", "Isolated offline settings", "file"},
         {"test-identity", "Isolated offline instance identity", "name"}, {"scale", "Preview window size", "size"},
         {"quit-after", "Offline test lifetime", "milliseconds"}, {"verify-tray", "Offline tray acceptance"},
         {"verify-ui", "Offline license and close acceptance"}, {"demo-license", "Preview in-app license"},
@@ -118,11 +119,13 @@ int main(int argc, char* argv[]) {
     Localization localization(demo, parser.value("settings-file"), parser.value("language"));
     Controller controller(demo, nullptr, parser.value("settings-file"));
     SpeedTest speed(demo);
+    NetworkInfo networkInfo(demo);
     Updater updates(demo);
     QObject::connect(&updates, &Updater::installationStarted, &controller, &Controller::requestQuit);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("client", &controller);
     engine.rootContext()->setContextProperty("speed", &speed);
+    engine.rootContext()->setContextProperty("networkInfo", &networkInfo);
     engine.rootContext()->setContextProperty("updates", &updates);
     engine.rootContext()->setContextProperty("trayAvailable", trayAvailable);
     engine.rootContext()->setContextProperty("i18n", &localization);
@@ -159,6 +162,8 @@ int main(int argc, char* argv[]) {
     QObject::connect(&controller, &Controller::showWindowRequested, window, showWindow);
     if (parser.isSet("page")) window->setProperty("page", parser.value("page").toInt());
     if (demo && capture && parser.value("page") == "1") speed.preview();
+    if (demo && parser.isSet("network-details")) QTimer::singleShot(500, window, [window] { QMetaObject::invokeMethod(window,"previewNetworkDetails"); });
+    if (demo && parser.isSet("speed-options")) QTimer::singleShot(500, window, [window] { QMetaObject::invokeMethod(window,"previewSpeedOptions"); });
     if (parser.isSet("scale")) {
         const auto dimensions = parser.value("scale").split('x');
         if (dimensions.size() == 2) window->resize(dimensions[0].toInt(), dimensions[1].toInt());

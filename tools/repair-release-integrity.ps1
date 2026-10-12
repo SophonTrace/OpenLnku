@@ -1,11 +1,12 @@
 #requires -Version 7.4
-param([switch]$IncludePrevious, [switch]$FixtureOnly, [switch]$BuildOnly, [switch]$ReleaseOnly, [switch]$AcceptanceDirectories, [switch]$ToolchainOnly, [string]$BrandAcceptanceRoot)
+param([switch]$IncludePrevious, [switch]$FixtureOnly, [switch]$BuildOnly, [switch]$ReleaseOnly, [switch]$AcceptanceDirectories, [switch]$ToolchainOnly, [string]$BrandAcceptanceRoot, [ValidatePattern('^[a-z][a-z0-9-]{0,24}$|^$')][string]$PackageSuffix)
 $ErrorActionPreference = 'Stop'
 $taskRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 if ((Get-Item -LiteralPath $taskRoot).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'The repair workspace must not be a reparse point.' }
 $level = & (Join-Path $PSScriptRoot 'inspect-process-integrity.ps1')
 if ($level.integrityRID -lt 8192) { throw 'Run this repair from a normal user PowerShell. A Low-integrity process cannot raise a file label.' }
 $version = (Get-Content -LiteralPath (Join-Path $taskRoot 'VERSION.txt') -Raw).Trim()
+$packageName = "OpenLnku-$version-windows-x64" + $(if ($PackageSuffix) { "-$PackageSuffix" } else { '' })
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version.' }
 if ($BrandAcceptanceRoot) {
     $brandPath = [IO.Path]::GetFullPath($BrandAcceptanceRoot)
@@ -20,8 +21,8 @@ $relativeTargets = if ($BrandAcceptanceRoot) { @([IO.Path]::GetRelativePath($tas
 elseif ($AcceptanceDirectories) { @('.deps\release-acceptance', '.deps\release-acceptance\nsis-temp') }
 elseif ($ToolchainOnly) { @('.deps\NSIS\nsis-3.13\Bin\makensis.exe') }
 elseif ($FixtureOnly) { @('build\settings_fixture.exe') }
-elseif ($BuildOnly) { @('build\OpenLnku.exe', 'build\settings_fixture.exe', 'build\speed_probe.exe', 'build\localization_tests.exe') }
-elseif ($ReleaseOnly) { @('build\OpenLnku.exe', 'build\settings_fixture.exe', "dist\OpenLnku-$version-windows-x64\OpenLnku.exe", "dist\OpenLnku-$version-setup-x64.exe") }
+elseif ($BuildOnly) { @('build\OpenLnku.exe', 'build\settings_fixture.exe', 'build\speed_probe.exe', 'build\network_probe.exe', 'build\network_info_tests.exe', 'build\speed_tests.exe', 'build\localization_tests.exe') }
+elseif ($ReleaseOnly) { @('build\OpenLnku.exe', 'build\settings_fixture.exe', "dist\$packageName\OpenLnku.exe", "dist\OpenLnku-$version-setup-x64.exe") }
 else { @(
     'build\OpenLnku.exe', 'build\settings_fixture.exe',
     "dist\OpenLnku-$version-windows-x64\OpenLnku.exe", "dist\OpenLnku-$version-setup-x64.exe",

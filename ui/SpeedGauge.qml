@@ -5,7 +5,8 @@ Item {
     property real value: 0
     property string phase: t("准备测速")
     property bool complete: false
-    readonly property real ceiling: value <= 600 ? 600 : Math.ceil(value / 600) * 600
+    property bool uploading: false
+    readonly property real ceiling: value <= 1200 ? 1200 : Math.ceil(value / 600) * 600
     Canvas {
         id: arc
         anchors.fill: parent
@@ -40,7 +41,7 @@ Item {
         spacing: 1
         AppText { anchors.horizontalCenter: parent.horizontalCenter; text: gauge.value > 0 ? gauge.value.toFixed(1) : "—"; font.family: "Segoe UI"; font.pixelSize: 33; font.weight: Font.Bold; color: "#080e36" }
         AppText { anchors.horizontalCenter: parent.horizontalCenter; text: "Mbps"; font.pixelSize: 10; color: "#7483a5" }
-        AppText { anchors.horizontalCenter: parent.horizontalCenter; text: gauge.phase.indexOf("上传") >= 0 ? t("上传速度") : t("下载速度"); font.pixelSize: 11; color: "#080e36" }
+        AppText { anchors.horizontalCenter: parent.horizontalCenter; text: gauge.uploading ? t("上传速度") : t("下载速度"); font.pixelSize: 11; color: "#080e36" }
         Rectangle {
             width: Math.max(80, stateText.implicitWidth + 32); height: 23; radius: 12
             anchors.horizontalCenter: parent.horizontalCenter; color: gauge.complete ? "#e5f5ed" : "#edf3ff"

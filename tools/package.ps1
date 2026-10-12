@@ -1,12 +1,13 @@
 #requires -Version 7.4
-param([string]$QtRoot = (Join-Path $PSScriptRoot '..\.deps\Qt\6.8.3\msvc2022_64'))
+param([string]$QtRoot = (Join-Path $PSScriptRoot '..\.deps\Qt\6.8.3\msvc2022_64'), [ValidatePattern('^[a-z][a-z0-9-]{0,24}$')][string]$PackageSuffix)
 $ErrorActionPreference = 'Stop'
 $taskRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $qtSdk = (Resolve-Path $QtRoot).Path
 $version = (Get-Content -LiteralPath (Join-Path $taskRoot 'VERSION.txt') -Raw).Trim()
 $publisherIntegrity = & (Join-Path $PSScriptRoot 'inspect-process-integrity.ps1')
 if ($publisherIntegrity.integrityRID -lt 8192) { throw 'Packaging requires normal Medium user integrity. Low tool execution cannot repair release labels.' }
-$outputDir = Join-Path $taskRoot ("dist\OpenLnku-$version-windows-x64")
+$packageName = "OpenLnku-$version-windows-x64" + $(if ($PackageSuffix) { "-$PackageSuffix" } else { '' })
+$outputDir = Join-Path $taskRoot ("dist\" + $packageName)
 $executable = Join-Path $taskRoot 'build\OpenLnku.exe'
 if (-not (Test-Path -LiteralPath $executable)) { throw 'Build the Qt application first.' }
 if (Test-Path -LiteralPath $outputDir) {
@@ -61,20 +62,20 @@ Get-ChildItem -LiteralPath (Join-Path $taskRoot 'tools') -File | ForEach-Object 
 $sourceDocs = Join-Path $sourceDir 'docs'
 New-Item -ItemType Directory -Path $sourceDocs -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $taskRoot 'docs/images') -Destination $sourceDocs -Recurse
-foreach ($name in @("release-$version.md")) {
+foreach ($name in @("release-$version.md", 'BUILD.md')) {
     Copy-Item -LiteralPath (Join-Path $taskRoot ('docs\' + $name)) -Destination $sourceDocs
 }
 foreach ($name in @('CMakeLists.txt', 'VERSION.txt', 'README.md', 'README.en.md', 'LICENSE', 'THIRD_PARTY.md', '.gitignore')) {
     Copy-Item -LiteralPath (Join-Path $taskRoot $name) -Destination $sourceDir -Force
 }
 # The application sources and dynamic libraries remain accessible for rebuilding/replacing.
-& (Join-Path $PSScriptRoot 'repair-release-integrity.ps1') -ReleaseOnly |
+& (Join-Path $PSScriptRoot 'repair-release-integrity.ps1') -ReleaseOnly -PackageSuffix $PackageSuffix |
     Set-Content -LiteralPath (Join-Path $taskRoot "docs\integrity-repair-$version.json") -Encoding utf8
 $payload = @(Get-ChildItem -LiteralPath $outputDir -Recurse -Force -File | Sort-Object FullName | ForEach-Object {
     @{path=[IO.Path]::GetRelativePath($outputDir,$_.FullName).Replace('\','/');bytes=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}
 })
 [IO.File]::WriteAllText((Join-Path $outputDir 'payload-manifest.json'), (@{version=$version;files=$payload}|ConvertTo-Json -Depth 5 -Compress),[Text.UTF8Encoding]::new($false))
-$zipPath = Join-Path $taskRoot ("dist\OpenLnku-$version-windows-x64.zip")
+$zipPath = Join-Path $taskRoot ("dist\" + $packageName + '.zip')
 Compress-Archive -LiteralPath $outputDir -DestinationPath $zipPath -Force
 Write-Output $zipPath
 & (Join-Path $PSScriptRoot 'check-release-integrity.ps1') -Executable (Join-Path $outputDir 'OpenLnku.exe') |

@@ -2,6 +2,9 @@
 // except a live-mode validation case that rejects missing adapter data before
 // creating its worker. No test creates a socket or consults system proxy state.
 #include "../src/app/speedtest.h"
+#include "../src/app/speed_body.h"
+#include "../src/app/speed_window.h"
+#include "../src/app/proxy_query.h"
 
 #include <QAbstractSocket>
 #include <QHostAddress>
@@ -13,6 +16,70 @@ class SpeedTests final : public QObject {
     Q_OBJECT
 
 private slots:
+    void delayedWarmupStillLeavesFullMeasurementWindow() {
+        using namespace std::chrono;
+        const auto start=SpeedWindow::Time{}; SpeedWindow window(10000,start);
+        QVERIFY(!window.begin(start+seconds(2),true));
+        QVERIFY(!window.begin(start+seconds(3),false));
+        QVERIFY(window.begin(start+seconds(5),true));
+        QCOMPARE(window.deadline(),start+seconds(15));
+        QCOMPARE(window.measuredMs(start+seconds(15)),std::int64_t(10000));
+        QVERIFY(!window.begin(start+seconds(7),true));
+        SpeedWindow stalled(7000,start); QVERIFY(!stalled.begin(start+seconds(9),true));
+    }
+    void protocolSnapshotsRemainIndependent() {
+        SpeedTest speed(true); speed.preview(); speed.setProtocolChoice(2);
+        QCOMPARE(speed.phase(),QStringLiteral("准备测速")); speed.preview();
+        speed.setProtocolChoice(1); QCOMPARE(speed.phase(),QStringLiteral("准备测速"));
+        speed.setProtocolChoice(2); QVERIFY(speed.complete());
+        speed.setProtocolChoice(-1); speed.setProtocolChoice(3); QCOMPARE(speed.protocolChoice(),2);
+        speed.setExtended(true); QVERIFY(speed.extended());
+    }
+
+    void exhaustedDiscoveryBudgetAndCancellationRejectBeforeChildLaunch() {
+        std::atomic_bool cancelled = false;
+        QVERIFY_THROWS_EXCEPTION(std::runtime_error, speedSystemProxy("speed.cloudflare.com", cancelled, 443, 0));
+        QVERIFY_THROWS_EXCEPTION(std::runtime_error, speedPhysicalDns("speed.cloudflare.com", 1, cancelled, 0));
+        cancelled = true;
+        QVERIFY_THROWS_EXCEPTION(std::runtime_error, speedSystemProxy("speed.cloudflare.com", cancelled));
+        QVERIFY_THROWS_EXCEPTION(std::runtime_error, speedPhysicalDns("speed.cloudflare.com", 1, cancelled));
+    }
+    void streamedChunkCountsBytesBeforeChunkCompletes() {
+        SpeedBody body(true, -1, 1048576);
+        QCOMPARE(body.feed("100000\r\n" + QByteArray(65536, 'a')).size(), 65536);
+        QCOMPARE(body.received(), qint64(65536));
+        QVERIFY(!body.complete());
+        QCOMPARE(body.feed(QByteArray(1048576 - 65536, 'b')).size(), 1048576 - 65536);
+        QCOMPARE(body.feed("\r\n0\r\nX-Test: yes\r\n\r\n").size(), 0);
+        QVERIFY(body.complete());
+        body.finishEof();
+    }
+    void splitFramingDoesNotCountHeadersOrTrailers() {
+        SpeedBody body(true, -1, 6);
+        QCOMPARE(body.feed("3;foo=bar\r").size(), 0);
+        QCOMPARE(body.feed("\nabc\r"), QByteArray("abc"));
+        QCOMPARE(body.feed("\n3\r\ndef\r\n0\r\n"), QByteArray("def"));
+        QVERIFY(!body.complete());
+        QCOMPARE(body.feed("\r\n").size(), 0);
+        QCOMPARE(body.received(), qint64(6));
+        QVERIFY(body.complete());
+    }
+    void rejectsTruncationOverflowAndInvalidChunkBoundaries() {
+        SpeedBody fixed(false, 4, 4);
+        QCOMPARE(fixed.feed("abc"), QByteArray("abc"));
+        QVERIFY_THROWS_EXCEPTION(std::runtime_error, fixed.finishEof());
+        QVERIFY_THROWS_EXCEPTION(std::runtime_error, fixed.feed("de"));
+        SpeedBody chunked(true, -1, 4);
+        QVERIFY_THROWS_EXCEPTION(std::runtime_error, chunked.feed("5\r\n"));
+        SpeedBody broken(true, -1, 4);
+        QCOMPARE(broken.feed("3\r\nabc"), QByteArray("abc"));
+        QVERIFY_THROWS_EXCEPTION(std::runtime_error, broken.feed("xx"));
+        SpeedBody invalid(true, -1, 4);
+        QVERIFY_THROWS_EXCEPTION(std::runtime_error, invalid.feed("+3\r\n"));
+        SpeedBody eof(false, -1, 4);
+        QCOMPARE(eof.feed("abc"), QByteArray("abc"));
+        eof.finishEof(); QVERIFY(eof.complete());
+    }
     void demoPreviewIsExplicitlySyntheticAndComplete() {
         SpeedTest speed(true);
         QSignalSpy changed(&speed, &SpeedTest::changed);
@@ -89,7 +156,7 @@ private slots:
         speed.setNodeChoice(1); // domestic
         QCOMPARE(speed.phase(), QStringLiteral("准备测速"));
         speed.preview();
-        QCOMPARE(speed.node(), QStringLiteral("国内 · 昆山"));
+        QCOMPARE(speed.node(), QStringLiteral("国内 · 上海大学"));
         QCOMPARE(speed.exitIp(), QStringLiteral("192.0.2.86"));
         const double domesticRate = speed.download();
 
@@ -102,7 +169,7 @@ private slots:
         // Switching back restores each node-choice snapshot rather than
         // displaying the latest result from another choice.
         speed.setNodeChoice(1);
-        QCOMPARE(speed.node(), QStringLiteral("国内 · 昆山"));
+        QCOMPARE(speed.node(), QStringLiteral("国内 · 上海大学"));
         QCOMPARE(speed.download(), domesticRate);
         speed.setNodeChoice(0);
         QCOMPARE(speed.node(), QStringLiteral("Cloudflare · HKG"));
@@ -118,12 +185,12 @@ private slots:
         speed.setNodeChoice(1);
         QCOMPARE(speed.phase(), QStringLiteral("准备测速"));
         speed.preview();
-        QCOMPARE(speed.node(), QStringLiteral("国内 · 昆山"));
+        QCOMPARE(speed.node(), QStringLiteral("国内 · 上海大学"));
         QCOMPARE(speed.exitIp(), QStringLiteral("198.51.100.24"));
 
         speed.setMode(0);
         speed.setNodeChoice(1);
-        QCOMPARE(speed.node(), QStringLiteral("国内 · 昆山"));
+        QCOMPARE(speed.node(), QStringLiteral("国内 · 上海大学"));
         QCOMPARE(speed.exitIp(), QStringLiteral("192.0.2.86"));
         QCOMPARE(speed.download(), domesticRate);
     }

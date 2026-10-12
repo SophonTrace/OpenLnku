@@ -6,6 +6,7 @@ Panel {
     id: card
     padding: 18
     implicitHeight: speed.error.length ? 464 : 438
+    function previewOptions() { optionsPopup.open() }
     function number(value) { return value < 0 ? "—" : value.toFixed(0) }
     ColumnLayout {
         anchors.fill: parent; spacing: 7
@@ -14,14 +15,7 @@ Panel {
             AppIcon { kind: "speed"; ink: "#184cff"; Layout.preferredWidth: 32; Layout.preferredHeight: 32 }
             AppText { text: t("网络测速"); color: "#080e36"; font.pixelSize: 21; font.weight: Font.Bold; Layout.leftMargin: 6 }
             Item { Layout.fillWidth: true }
-            SelectField {
-                Layout.preferredWidth: 130; implicitHeight: 35; fill: "#f7f9ff"
-                model: [t("自动选择"), t("国内节点"), t("海外节点")]
-                currentIndex: speed.nodeChoice; enabled: !speed.running
-                onActivated: speed.nodeChoice = currentIndex
-                Accessible.name: t("测速节点")
-            }
-            ActionButton { text: speed.running ? t("取消测速") : t("开始测速"); accent: "#1b59d7"; implicitWidth: 122; implicitHeight: 41; onClicked: speed.running ? speed.cancel() : speed.start(client.interfaceIndex(), client.ip, client.adapterLabel) }
+            ActionButton { text: speed.running ? t("取消测速") : t("开始测速"); accent: "#1b59d7"; enabled: speed.running || (!networkInfo.refreshing && !networkInfo.checkingDns); implicitWidth: 122; implicitHeight: 41; onClicked: { optionsPopup.close(); speed.running ? speed.cancel() : speed.start(client.interfaceIndex(), client.ip, client.adapterLabel) } }
         }
         RowLayout {
             Layout.fillWidth: true; spacing: 12; Layout.preferredHeight: 33
@@ -41,24 +35,67 @@ Panel {
                     }
                 }
             }
-            Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: 22; color: "#dce2ec"; Layout.leftMargin: 7; Layout.rightMargin: 7 }
-            AppText { text: t("出口 IP"); color: "#7483a5"; font.pixelSize: 12 }
-            AppText { text: speed.exitIp; color: "#080e36"; font.family: "Segoe UI"; font.pixelSize: 14; elide: Text.ElideMiddle; Layout.maximumWidth: 125 }
+            AppText {
+                text: [speed.protocol || [t("自动协议"), "IPv4", "IPv6"][speed.protocolChoice], speed.extended ? t("延长测速") : t("标准测速")].join(" · ")
+                color: "#7483a5"; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight
+            }
             Button {
-                implicitWidth: 22; implicitHeight: 24; padding: 0; onClicked: speed.copyExitIp(); enabled: speed.exitIp !== "—"
-                background: Rectangle { radius: 6; color: parent.hovered ? "#edf2ff" : "transparent" }
-                contentItem: AppIcon { kind: "copy"; ink: "#080e36" }
-                Accessible.name: t("复制出口 IP")
+                id: optionsButton
+                Layout.preferredWidth: 116; Layout.preferredHeight: 33
+                enabled: !speed.running; hoverEnabled: true
+                onClicked: optionsPopup.visible ? optionsPopup.close() : optionsPopup.open()
+                Accessible.name: t("测速选项")
+                background: Rectangle { radius: 9; color: optionsPopup.visible || optionsButton.hovered ? "#e9eeff" : "#f5f8ff"; border.color: "#e2e7f2" }
+                contentItem: Row {
+                    spacing: 7
+                    AppIcon { kind: "settings"; ink: optionsButton.enabled ? "#526589" : "#a2a9b7"; width: 16; height: 16; anchors.verticalCenter: parent.verticalCenter }
+                    AppText { text: t("测速选项"); font.pixelSize: 12; color: optionsButton.enabled ? "#526589" : "#a2a9b7"; anchors.verticalCenter: parent.verticalCenter }
+                }
+                Popup {
+                    id: optionsPopup
+                    x: optionsButton.width - width; y: optionsButton.height + 8
+                    width: 330; padding: 18
+                    implicitHeight: optionsContents.implicitHeight + padding * 2
+                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                    background: Rectangle { radius: 14; color: "white"; border.color: "#dce3f0" }
+                    contentItem: ColumnLayout {
+                        id: optionsContents
+                        spacing: 14
+                        AppText { text: t("测速选项"); font.pixelSize: 16; font.weight: Font.DemiBold }
+                        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: "#edf0f6" }
+                        GridLayout {
+                            Layout.fillWidth: true; columns: 2; rowSpacing: 12; columnSpacing: 16
+                            AppText { text: t("测速节点"); font.pixelSize: 12; color: "#7483a5" }
+                            SelectField {
+                                Layout.fillWidth: true; implicitHeight: 36; fill: "#f7f9ff"
+                                model: [t("自动选择"), t("国内节点"), t("海外节点")]
+                                currentIndex: speed.nodeChoice; enabled: !speed.running
+                                onActivated: speed.nodeChoice = currentIndex; Accessible.name: t("测速节点")
+                            }
+                            AppText { text: t("IP 协议"); font.pixelSize: 12; color: "#7483a5" }
+                            SelectField {
+                                Layout.fillWidth: true; implicitHeight: 36; fill: "#f7f9ff"
+                                model: [t("自动协议"), "IPv4", "IPv6"]
+                                currentIndex: speed.protocolChoice; enabled: !speed.running
+                                onActivated: speed.protocolChoice = currentIndex; Accessible.name: t("IP 协议")
+                            }
+                            AppText { text: t("测速时长"); font.pixelSize: 12; color: "#7483a5" }
+                            SelectField {
+                                Layout.fillWidth: true; implicitHeight: 36; fill: "#f7f9ff"
+                                model: [t("标准测速"), t("延长测速")]
+                                currentIndex: speed.extended ? 1 : 0; enabled: !speed.running
+                                onActivated: speed.extended = currentIndex === 1; Accessible.name: t("测速时长")
+                            }
+                            AppText { text: t("下载 / 上传"); font.pixelSize: 12; color: "#7483a5" }
+                            AppText { text: speed.extended ? "20 s / 15 s" : "10 s / 7 s"; font.pixelSize: 12; color: "#526589" }
+                        }
+                    }
+                }
             }
-            Rectangle {
-                Layout.preferredWidth: Math.min(104, routeText.implicitWidth + 24); Layout.preferredHeight: 27; radius: 8; color: "#edf4ff"
-                AppText { id: routeText; anchors.centerIn: parent; text: speed.mode === 0 ? client.demo ? "Mihomo TUN" : client.routeName : client.adapterLabel; width: Math.min(84, implicitWidth); elide: Text.ElideRight; color: "#647695"; font.pixelSize: 11 }
-            }
-            Item { Layout.fillWidth: true }
         }
         RowLayout {
             Layout.fillWidth: true; Layout.preferredHeight: 171; Layout.minimumHeight: 171; Layout.maximumHeight: 171; spacing: 14
-            SpeedGauge { Layout.preferredWidth: 304; Layout.fillHeight: true; value: speed.phase.indexOf("上传") >= 0 ? speed.upload : speed.download; phase: speed.phase; complete: speed.complete }
+            SpeedGauge { Layout.preferredWidth: 304; Layout.fillHeight: true; value: speed.uploading ? speed.upload : speed.download; uploading: speed.uploading; phase: speed.phase; complete: speed.complete }
             GridLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; columns: 2; columnSpacing: 8; rowSpacing: 8
                 Repeater {

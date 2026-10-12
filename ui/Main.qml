@@ -11,6 +11,21 @@ ApplicationWindow {
     title: client.demo ? t("OpenLnku · 离线演示") : "OpenLnku"
     color: "#f3f5f8"
     property int page: 0
+    readonly property string networkContext: String(speed.mode) + ":" + String(speed.protocolChoice) + ":" + String(client.selectedAdapter) + ":" + String(client.interfaceIndex()) + ":" + client.ip
+    onPageChanged: { if (page === 1) infoRefresh.restart() }
+    onNetworkContextChanged: { networkInfo.invalidate(); if (page === 1) infoRefresh.restart() }
+    Timer {
+        id: infoRefresh; interval: 250
+        onTriggered: {
+            if (window.page !== 1 || speed.running) return
+            if (networkInfo.refreshing || networkInfo.checkingDns) { restart(); return }
+            networkInfo.refresh(speed.mode,speed.protocolChoice,client.interfaceIndex(),client.ip)
+        }
+    }
+    Connections { target: speed; function onChanged() { if (window.page === 1 && !speed.running) infoRefresh.restart() } }
+    function previewNetworkDetails() { networkInfo.detectDns(speed.mode,speed.protocolChoice,client.interfaceIndex(),client.ip); networkPage.contentItem.contentY = 500 }
+    function previewSpeedOptions() { speedPanel.previewOptions() }
+
     property bool forceClose: false
     property bool revealPassword: false
     readonly property color ink: "#080e36"
@@ -284,7 +299,9 @@ ApplicationWindow {
                             AppText { text: client.ip; font.family: "Segoe UI"; font.pixelSize: 14; Layout.fillWidth: true }
                         }
                     }
-                    SpeedPanel { Layout.fillWidth: true }
+                    SpeedPanel { id: speedPanel; Layout.fillWidth: true }
+                    ExitInfoPanel { Layout.fillWidth: true }
+                    DnsPanel { Layout.fillWidth: true }
                     Panel {
                         Layout.fillWidth: true; Layout.preferredHeight: 253
                         ColumnLayout {
